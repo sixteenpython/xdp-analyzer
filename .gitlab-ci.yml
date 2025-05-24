@@ -27,8 +27,10 @@ cache:
 
 
 
-# Template for Python setup
-.python-setup: &python-setup
+# Linting job
+lint:
+  stage: lint
+  image: python:${PYTHON_VERSION}
   before_script:
     - python -V
     - pip install virtualenv
@@ -36,18 +38,9 @@ cache:
     - source venv/bin/activate
     - pip install --upgrade pip
     - pip install -r requirements.txt
-
-
-
-
-# Linting job
-lint:
-  stage: lint
-  image: python:${PYTHON_VERSION}
-  <<: python-setup
   script:
     - flake8 --max-line-length=100 .py
-    - black --check --line-length 100 *.py
+    - black --check --line-length 100 .py
   allow_failure: true
 
 
@@ -57,7 +50,13 @@ lint:
 test:
   stage: test
   image: python:${PYTHON_VERSION}
-  <<: *python-setup
+  before_script:
+    - python -V
+    - pip install virtualenv
+    - virtualenv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
   script:
     - pytest --cov=./ --cov-report=xml
   artifacts:
@@ -76,7 +75,13 @@ test:
 build:
   stage: build
   image: python:${PYTHON_VERSION}
-  <<: *python-setup
+  before_script:
+    - python -V
+    - pip install virtualenv
+    - virtualenv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
   script:
     - mkdir -p dist
     - cp Test.py dist/
@@ -121,7 +126,13 @@ docker_build:
 deploy_staging:
   stage: deploy
   image: python:${PYTHON_VERSION}
-  <<: *python-setup
+  before_script:
+    - python -V
+    - pip install virtualenv
+    - virtualenv venv
+    - source venv/bin/activate
+    - pip install --upgrade pip
+    - pip install -r requirements.txt
   script:
     - echo "Deploying to staging environment"
     - python -c "print('Deployment to staging successful')"
