@@ -33,10 +33,10 @@ deploy_job:
   stage: deploy
   script:
     - echo "--- Starting Deployment Stage ---"
-    - echo "Simulating deployment of hello_world.py..."
-    - python hello_world.py
+    - echo "Simulating deployment of Test.py..."
+    - python Test.py
     - echo "Hello World script output above."
-    - echo "Deployment complete! hello_world.py is now 'live'."
+    - echo "Deployment complete! Test.py is now 'live'."
   needs: ["test_job"]
   only:
     - main
