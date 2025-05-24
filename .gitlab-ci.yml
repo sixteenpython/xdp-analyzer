@@ -5,7 +5,6 @@
 image: python:3.9-slim
 
 # Define the stages of your CI/CD pipeline.
-# Here, we only have a 'test' stage.
 stages:
   - test
 
@@ -14,19 +13,12 @@ unit_tests:
   stage: test # Assign this job to the 'test' stage
   script:
     # 1. Install project dependencies from requirements.txt
-    #    The -q flag makes the installation quiet.
     - pip install -q -r requirements.txt
 
     # 2. Run your unit tests using the unittest discovery feature.
-    #    This command finds and runs all tests in files named test_*.py or *_test.py
-    #    in the current directory and its subdirectories.
     - python -m unittest discover
 
-  # Optional: Define artifacts to collect.
-  # If your tests generate reports (e.g., JUnit XML reports), you can specify them here.
   artifacts:
     paths:
-      # - test_results.xml # Uncomment if you configure your tests to output XML reports
-      # - . # You might uncomment this to archive logs or other output if tests fail
-      - .
+      - . # Collect all files in the project directory as artifacts for inspection if needed
     expire_in: 1 week # How long to keep the artifacts
