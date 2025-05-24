@@ -1,42 +1,30 @@
-# .gitlab-ci.yml
+image: python:3.9
 
 stages:
-  - build
   - test
-  - deploy
 
-image: python:3.9-slim-buster
+before_script:
+  - pip install scipy pytest
 
-build_job:
-  stage: build
-  script:
-    - echo "--- Starting Build Stage ---"
-    - python -m pip install --upgrade pip
-    # Removed pytest installation from here, as it's better to install it in the job that uses it
-    - echo "Build stage complete. Basic setup done."
-  artifacts:
-    paths:
-      - hello_world.py
-      - test_hello_world.py
-    expire_in: 1 hour
-
-test_job:
+test:
   stage: test
   script:
-    - echo "--- Starting Test Stage ---"
-    - pip install pytest # <--- ADD THIS LINE HERE
-    - pytest
-    - echo "Test stage complete. All tests passed."
-  needs: ["build_job"]
+    - pytest test_black_scholes.py -v
 
-deploy_job:
-  stage: deploy
+lint:
+  stage: test
   script:
-    - echo "--- Starting Deployment Stage ---"
-    - echo "Simulating deployment of hello_world.py..."
-    - python hello_world.py
-    - echo "Hello World script output above."
-    - echo "Deployment complete! hello_world.py is now 'live'."
-  needs: ["test_job"]
-  only:
-    - main
+    - pip install flake8
+    - flake8 black_scholes.py test_black_scholes.py
+
+coverage:
+  stage: test
+  script:
+    - pip install pytest-cov
+    - pytest --cov=black_scholes test_black_scholes.py
+    - pytest --cov=black_scholes --cov-report=xml test_black_scholes.py
+  artifacts:
+    reports:
+      coverage_report:
+        coverage_format: cobertura
+        path: coverage.xml
