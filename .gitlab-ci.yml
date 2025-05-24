@@ -1,0 +1,42 @@
+# .gitlab-ci.yml
+
+stages:
+  - build
+  - test
+  - deploy
+
+image: python:3.9-slim-buster
+
+build_job:
+  stage: build
+  script:
+    - echo "--- Starting Build Stage ---"
+    - python -m pip install --upgrade pip
+    # Removed pytest installation from here, as it's better to install it in the job that uses it
+    - echo "Build stage complete. Basic setup done."
+  artifacts:
+    paths:
+      - Test.py
+      - test_Test.py
+    expire_in: 1 hour
+
+test_job:
+  stage: test
+  script:
+    - echo "--- Starting Test Stage ---"
+    - pip install pytest # <--- ADD THIS LINE HERE
+    - pytest
+    - echo "Test stage complete. All tests passed."
+  needs: ["build_job"]
+
+deploy_job:
+  stage: deploy
+  script:
+    - echo "--- Starting Deployment Stage ---"
+    - echo "Simulating deployment of hello_world.py..."
+    - python hello_world.py
+    - echo "Hello World script output above."
+    - echo "Deployment complete! hello_world.py is now 'live'."
+  needs: ["test_job"]
+  only:
+    - main
