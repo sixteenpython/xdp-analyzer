@@ -1,3 +1,4 @@
+# binomial_option_pricing.py
 import numpy as np
 
 def binomial_option_pricing(S, K, T, r, sigma, N, option_type='call', exercise_type='european'):
@@ -36,15 +37,11 @@ def binomial_option_pricing(S, K, T, r, sigma, N, option_type='call', exercise_t
     # Calculate risk-neutral probability
     p = (np.exp(r * dt) - d) / (u - d)
 
-    # Initialize asset price tree (only need to store final prices for option payoff calculation)
-    # The tree will have N+1 columns (time steps) and N+1 rows (possible prices at final step)
-    # For efficiency, we can calculate asset prices on the fly or only store the last level for the tree initialization.
-    # However, for clarity and typical binomial tree implementation, we build the asset price tree structure.
+    # Initialize asset price tree (for clarity in structure)
     asset_prices = np.zeros((N + 1, N + 1))
     for i in range(N + 1):  # iterate through time steps
         for j in range(i + 1): # iterate through possible states at each time step
             asset_prices[j, i] = S * (u**j) * (d**(i - j))
-
 
     # Initialize option value tree (working backwards from maturity)
     option_values = np.zeros((N + 1, N + 1))
@@ -61,8 +58,7 @@ def binomial_option_pricing(S, K, T, r, sigma, N, option_type='call', exercise_t
     # Work backwards through the tree to find option values at earlier nodes
     for i in range(N - 1, -1, -1):  # Iterate from second-to-last step back to time 0
         for j in range(i + 1):
-            # Calculate option value by discounting the expected future value
-            # This is the continuation value
+            # Calculate option value by discounting the expected future value (continuation value)
             continuation_value = np.exp(-r * dt) * (p * option_values[j + 1, i + 1] + (1 - p) * option_values[j, i + 1])
 
             if exercise_type == 'american':
@@ -80,6 +76,3 @@ def binomial_option_pricing(S, K, T, r, sigma, N, option_type='call', exercise_t
 
     # The option price at time 0 is the value at the first node (top-left)
     return option_values[0, 0]
-
-# No example usage or main block provided, as requested, to keep the script clean.
-# You can add your own main block for testing if needed.
