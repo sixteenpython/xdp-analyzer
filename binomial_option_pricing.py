@@ -76,3 +76,4 @@ def binomial_option_pricing(S, K, T, r, sigma, N, option_type='call', exercise_t
 
     # The option price at time 0 is the value at the first node (top-left)
     return option_values[0, 0]
+    
