@@ -3,6 +3,7 @@
 import math
 from scipy.stats import norm
 
+
 def black_scholes_option_price(S, K, T, r, sigma, option_type="call"):
     """
     Calculate option price using Black-Scholes model
@@ -32,6 +33,7 @@ def black_scholes_option_price(S, K, T, r, sigma, option_type="call"):
     
     return option_price
 
+
 def main():
     # Example values
     S = 100.0    # Stock price
@@ -51,6 +53,7 @@ def main():
     print(f"Volatility: {sigma*100}%")
     print(f"Call Option Price: ${call_price:.2f}")
     print(f"Put Option Price: ${put_price:.2f}")
+
 
 if __name__ == "__main__":
     main()
