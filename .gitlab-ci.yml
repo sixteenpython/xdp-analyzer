@@ -1,11 +1,11 @@
 # .gitlab-ci.yml
 
 # Use an official Python Docker image as the base for our jobs.
-# We choose a specific version (e.g., 3.9-slim) for consistency and smaller image size.
+# python:3.9-slim is a good choice for consistency and smaller image size.
 image: python:3.9-slim
 
 # Define the stages of your CI/CD pipeline.
-# In this case, we only have a 'test' stage.
+# Here, we only have a 'test' stage.
 stages:
   - test
 
@@ -24,9 +24,9 @@ unit_tests:
 
   # Optional: Define artifacts to collect.
   # If your tests generate reports (e.g., JUnit XML reports), you can specify them here.
-  # For now, we don't have specific test reports, but this is a placeholder.
   artifacts:
     paths:
       # - test_results.xml # Uncomment if you configure your tests to output XML reports
-      - . # You might want to archive logs or other output if tests fail
+      # - . # You might uncomment this to archive logs or other output if tests fail
+      - .
     expire_in: 1 week # How long to keep the artifacts
