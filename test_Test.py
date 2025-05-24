@@ -1,6 +1,6 @@
 # test_Test.py
 import pytest
-from hello_world import greet
+from Test import greet
 
 def test_greet_default():
     assert greet() == "Hello, World!"
