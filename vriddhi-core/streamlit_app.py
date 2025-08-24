@@ -28,54 +28,45 @@ def display_stock_selection_rationale(rationale):
     
     with st.expander("📋 How were these stocks selected?", expanded=False):
         st.markdown(f"""
-        **Universe Analysis:**
+        **Simplified Sector-Based Selection:**
         - Started with **{rationale['total_universe']} stocks** from our curated database
-        - Applied basic quality filters, resulting in **{rationale['after_quality_filters']} eligible stocks**
-        - Identified **{rationale['sectors_available']} unique sectors** for diversification
-        - Selected **{rationale['stocks_selected']} stocks** (one best from each sector)
+        - Covered **{rationale['sectors_covered']} sectors** for maximum diversification
+        - Selected **{rationale['stocks_selected']} stocks** (one best stock per sector)
         
         **Selection Method:** {rationale['selection_method']}
-        """)
         
-        st.markdown("**Selection Criteria (Weighted Scoring):**")
+        **Selection Criteria:**
+        """)
         for criteria in rationale['selection_criteria']:
             st.markdown(f"- {criteria}")
         
-        st.markdown("**Quality Filters Applied:**")
-        for filter_desc in rationale['quality_filters']:
-            st.markdown(f"- {filter_desc}")
+        st.markdown("### 📊 Sector-wise Selection Details")
         
-        st.markdown(f"**Diversification Approach:** {rationale['diversification_approach']}")
+        # Display sector selections in a nice format
+        for sector, details in rationale['sector_selections'].items():
+            st.markdown(f"""
+            **{sector} Sector:**
+            - Selected: **{details['selected_stock']}**
+            - Avg CAGR: **{details['avg_cagr']:.1f}%**
+            - PE Ratio: **{details['pe_ratio']:.1f}**
+            - PB Ratio: **{details['pb_ratio']:.1f}**
+            - Sector Score: **{details['sector_score']:.3f}**
+            - (Chosen from {details['total_in_sector']} stocks in sector)
+            """)
         
-        # Display sector breakdown
-        if 'sector_breakdown' in rationale:
-            st.markdown("**Sector-wise Selection Details:**")
-            sector_data = []
-            for sector, details in rationale['sector_breakdown'].items():
-                sector_data.append({
-                    'Sector': sector,
-                    'Selected Stock': details['selected_stock'],
-                    'Historical CAGR': f"{details['cagr']:.1f}%",
-                    'PE Ratio': f"{details['pe_ratio']:.1f}",
-                    'PB Ratio': f"{details['pb_ratio']:.2f}",
-                    'Candidates Evaluated': details['candidates_evaluated']
-                })
-            
-            sector_df = pd.DataFrame(sector_data)
-            st.dataframe(sector_df, use_container_width=True)
-        
-        # Achievement status
-        if rationale.get('fallback_used', False):
-            st.warning(f"⚠️ **Note:** {rationale.get('feasibility_note', 'Target not fully achieved')}")
-        else:
-            st.success(f"✅ **Portfolio Achieved:** {rationale.get('achieved_cagr', 'N/A')} CAGR with maximum sector diversification")
+        st.markdown(f"""
+        **Portfolio Summary:**
+        - **Achieved CAGR:** {rationale['achieved_cagr']}
+        - **Feasibility:** {'✅ Target Achievable' if rationale['feasible'] else '⚠️ Below Target'}
+        - **Diversification:** Perfect sector diversification (1 stock per sector)
+        """)
         
         st.info("""
         **Why This Simplified Approach?**
-        This sector-based selection ensures maximum diversification by picking the best stock from each 
-        available sector. The scoring system prioritizes historical performance (CAGR), value (low PB ratio), 
-        and reasonable valuation (PE ratio 15-25). This approach guarantees balanced exposure across 
-        different industries while selecting fundamentally strong companies.
+        Our sector-based selection ensures maximum diversification by selecting the best stock 
+        from each sector based on fundamentals. Primary focus on CAGR (50%), secondary on 
+        low PB ratios (40%), and tertiary on optimal PE ranges (10%). This provides balanced 
+        exposure across all market sectors while maintaining quality standards.
         """)
 
 def display_investment_summary(summary_data, actual_feasible):
@@ -153,8 +144,6 @@ def display_investment_summary(summary_data, actual_feasible):
         **Option 1:** Lower your target CAGR to **{summary_data['achieved_cagr']:.1f}%** for this horizon
         
         **Option 2:** Extend your investment horizon for potentially higher returns
-        
-        **Option 3:** Consider the sector-diversified portfolio which provides balanced risk exposure
         
         **Current Reality:** Even at {summary_data['achieved_cagr']:.1f}% CAGR, you'll still earn ₹{int(summary_data['gain']):,} in gains!
         """)
