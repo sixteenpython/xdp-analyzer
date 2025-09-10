@@ -7,7 +7,7 @@ import re
 import json
 import logging
 from typing import Dict, List, Optional, Any
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 import nltk
 import textstat
 from collections import Counter, defaultdict
@@ -39,9 +39,11 @@ class IntelligentAnalysis:
     readability_scores: Dict[str, float]
     keyword_analysis: Dict[str, Any]
     content_themes: List[str]
-    risk_indicators: List[str]
-    automation_opportunities: List[str]
-    confidence_score: float
+    themes: List[str] = field(default_factory=list)  # Alias for content_themes
+    risk_indicators: List[str] = field(default_factory=list)
+    automation_opportunities: List[str] = field(default_factory=list)
+    confidence_score: float = 0.0
+    formula_analysis: Dict[str, Any] = field(default_factory=dict)  # For Excel documents
 
 class FreeIntelligentAnalyzer:
     """
@@ -153,9 +155,11 @@ class FreeIntelligentAnalyzer:
             readability_scores=readability,
             keyword_analysis=keywords,
             content_themes=themes,
+            themes=themes,  # Populate the alias field
             risk_indicators=risks,
             automation_opportunities=automation,
-            confidence_score=confidence
+            confidence_score=confidence,
+            formula_analysis=formula_analysis  # Add formula analysis data
         )
     
     def analyze_word_content(self, word_analysis) -> IntelligentAnalysis:
@@ -207,9 +211,11 @@ class FreeIntelligentAnalyzer:
             readability_scores=readability,
             keyword_analysis=keywords,
             content_themes=themes,
+            themes=themes,  # Populate the alias field
             risk_indicators=risks,
             automation_opportunities=automation,
-            confidence_score=confidence
+            confidence_score=confidence,
+            formula_analysis={}  # Empty for Word documents
         )
     
     def analyze_powerpoint_content(self, pptx_analysis) -> IntelligentAnalysis:

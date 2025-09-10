@@ -620,7 +620,7 @@ class StreamlitXDPAnalyzer:
         # Basic document info
         file_name = excel_analysis.filename
         worksheet_count = len(excel_analysis.worksheets)
-        formula_count = intelligent_analysis.formula_analysis.get('total_formulas', 0)
+        formula_count = getattr(intelligent_analysis, 'formula_analysis', {}).get('total_formulas', 0)
         
         # Document type classification
         if formula_count > 50 and worksheet_count > 3:
@@ -638,19 +638,19 @@ class StreamlitXDPAnalyzer:
         business_context = ""
         if any("budget" in sheet.name.lower() for sheet in excel_analysis.worksheets):
             business_context += " with budget planning elements"
-        if any("revenue" in str(intelligent_analysis.business_logic).lower()):
+        if any("revenue" in str(getattr(intelligent_analysis, 'business_logic', '')).lower()):
             business_context += " containing revenue analysis"
-        if intelligent_analysis.risk_indicators:
+        if getattr(intelligent_analysis, 'risk_indicators', []):
             business_context += f" with {len(intelligent_analysis.risk_indicators)} identified risk factors"
         
         # Complexity assessment
-        complexity = intelligent_analysis.formula_analysis.get('complexity_level', 'Unknown')
+        complexity = getattr(intelligent_analysis, 'formula_analysis', {}).get('complexity_level', 'Unknown')
         
         summary = f"""
         This Excel file "{file_name}" is a {doc_type}{business_context}. 
         
         The workbook contains {worksheet_count} worksheet{"s" if worksheet_count != 1 else ""} with {formula_count} formula{"s" if formula_count != 1 else ""}, 
-        indicating a {complexity.lower()}-complexity document. {intelligent_analysis.summary}
+        indicating a {complexity.lower()}-complexity document. {getattr(intelligent_analysis, 'summary', 'Document analysis completed.')}
         
         This appears to be used for {"business analysis and decision-making" if formula_count > 10 else "data organization and basic calculations"}.
         """
@@ -681,14 +681,15 @@ class StreamlitXDPAnalyzer:
         
         # Content analysis
         content_focus = ""
-        if 'strategy' in intelligent_analysis.themes:
+        themes = getattr(intelligent_analysis, 'themes', [])
+        if 'strategy' in themes:
             content_focus += " focused on strategic planning"
-        elif 'finance' in intelligent_analysis.themes:
+        elif 'finance' in themes:
             content_focus += " with financial analysis content"
-        elif 'project' in intelligent_analysis.themes:
+        elif 'project' in themes:
             content_focus += " related to project management"
-        elif intelligent_analysis.themes:
-            content_focus += f" covering {', '.join(intelligent_analysis.themes).lower()} topics"
+        elif themes:
+            content_focus += f" covering {', '.join(themes).lower()} topics"
         
         # Reading time and complexity
         reading_time = word_analysis.reading_time
@@ -701,7 +702,7 @@ class StreamlitXDPAnalyzer:
         It contains {headings_count} heading{"s" if headings_count != 1 else ""} and {tables_count} table{"s" if tables_count != 1 else ""}, 
         suggesting {"well-structured content" if headings_count > 0 else "simple formatting"}.
         
-        {intelligent_analysis.summary}
+        {getattr(intelligent_analysis, 'summary', 'Document analysis completed.')}
         
         This document appears to be {"a formal business report" if headings_count > 3 else "an informal document"} 
         suitable for {"executive review" if word_count > 1500 else "quick reference"}.
