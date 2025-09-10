@@ -615,100 +615,400 @@ class StreamlitXDPAnalyzer:
         """)
     
     def _generate_excel_summary(self, excel_analysis, intelligent_analysis):
-        """Generate detailed Excel document summary"""
+        """Generate intelligent, LLM-like Excel document summary"""
         
-        # Basic document info
-        file_name = excel_analysis.filename
-        worksheet_count = len(excel_analysis.worksheets)
-        formula_count = getattr(intelligent_analysis, 'formula_analysis', {}).get('total_formulas', 0)
+        # Safe data extraction
+        file_name = getattr(excel_analysis, 'filename', 'Unknown file')
+        worksheets = getattr(excel_analysis, 'worksheets', [])
+        if isinstance(worksheets, bool):
+            worksheets = []
+        worksheet_count = len(worksheets) if worksheets else 1
         
-        # Document type classification
-        if formula_count > 50 and worksheet_count > 3:
-            doc_type = "comprehensive financial model or business analysis workbook"
+        formula_analysis = getattr(intelligent_analysis, 'formula_analysis', {})
+        formula_count = formula_analysis.get('total_formulas', 0)
+        if isinstance(formula_count, bool):
+            formula_count = 0
+            
+        insights = getattr(intelligent_analysis, 'key_insights', [])
+        themes = getattr(intelligent_analysis, 'themes', [])
+        risks = getattr(intelligent_analysis, 'risk_indicators', [])
+        
+        # Intelligent document purpose detection
+        purpose_analysis = self._analyze_excel_purpose(worksheets, formula_count, insights, themes)
+        
+        # Business context understanding
+        business_intelligence = self._extract_business_intelligence(worksheets, formula_analysis, insights)
+        
+        # Generate human-like narrative summary
+        if formula_count > 100 and worksheet_count > 5:
+            summary = f"""Looking at "{file_name}", this appears to be a sophisticated financial model or comprehensive business analysis system. The workbook is quite complex with {worksheet_count} interconnected worksheets containing {formula_count} formulas, suggesting it's used for {purpose_analysis['primary_purpose']}.
+
+{business_intelligence['narrative']} The level of complexity indicates this is likely a critical business tool used by {purpose_analysis['likely_users']} for {purpose_analysis['use_cases']}.
+
+{self._generate_risk_narrative(risks)} This spreadsheet represents {business_intelligence['business_value']} and appears to be {purpose_analysis['maintenance_level']}."""
+        
         elif formula_count > 20:
-            doc_type = "calculation-intensive spreadsheet with business logic"
-        elif worksheet_count > 5:
-            doc_type = "multi-sheet data organization workbook"
-        elif formula_count > 0:
-            doc_type = "analytical spreadsheet with calculations"
+            summary = f""""{file_name}" is a {purpose_analysis['document_type']} with {worksheet_count} worksheet{"s" if worksheet_count != 1 else ""} and {formula_count} formulas. This suggests it's actively used for {purpose_analysis['primary_purpose']}.
+
+{business_intelligence['narrative']} The structure indicates it's designed for {purpose_analysis['target_audience']} who need to {purpose_analysis['main_function']}.
+
+{self._generate_efficiency_insights(formula_count, worksheet_count)} Overall, this appears to be {purpose_analysis['criticality_assessment']} that {business_intelligence['operational_role']}."""
+        
+        elif worksheet_count > 3:
+            summary = f""""{file_name}" is organized as a multi-sheet workbook with {worksheet_count} sections, containing {formula_count} calculation{"s" if formula_count != 1 else ""}. This structure suggests it's used for {purpose_analysis['organizational_purpose']}.
+
+{business_intelligence['data_insights']} The layout indicates this workbook serves as {purpose_analysis['functional_role']} for {purpose_analysis['department_focus']}.
+
+This type of organization is typical of {purpose_analysis['industry_pattern']} and appears to be {purpose_analysis['usage_frequency']}."""
+        
         else:
-            doc_type = "data storage or reference spreadsheet"
-        
-        # Business context
-        business_context = ""
-        if any("budget" in sheet.name.lower() for sheet in excel_analysis.worksheets):
-            business_context += " with budget planning elements"
-        if any("revenue" in str(getattr(intelligent_analysis, 'business_logic', '')).lower()):
-            business_context += " containing revenue analysis"
-        if getattr(intelligent_analysis, 'risk_indicators', []):
-            business_context += f" with {len(intelligent_analysis.risk_indicators)} identified risk factors"
-        
-        # Complexity assessment
-        complexity = getattr(intelligent_analysis, 'formula_analysis', {}).get('complexity_level', 'Unknown')
-        
-        summary = f"""
-        This Excel file "{file_name}" is a {doc_type}{business_context}. 
-        
-        The workbook contains {worksheet_count} worksheet{"s" if worksheet_count != 1 else ""} with {formula_count} formula{"s" if formula_count != 1 else ""}, 
-        indicating a {complexity.lower()}-complexity document. {getattr(intelligent_analysis, 'summary', 'Document analysis completed.')}
-        
-        This appears to be used for {"business analysis and decision-making" if formula_count > 10 else "data organization and basic calculations"}.
-        """
+            summary = f""""{file_name}" is a focused spreadsheet with {formula_count} calculation{"s" if formula_count != 1 else ""} {"across " + str(worksheet_count) + " sheet" + ("s" if worksheet_count != 1 else "") if worksheet_count > 1 else ""}. {purpose_analysis['simple_analysis']}.
+
+{business_intelligence['basic_insights']} This appears to be {purpose_analysis['utility_type']} that {purpose_analysis['practical_use']}.
+
+The straightforward structure suggests it's designed for {purpose_analysis['accessibility']} and {purpose_analysis['maintenance_ease']}."""
         
         return summary.strip()
     
-    def _generate_word_summary(self, word_analysis, intelligent_analysis):
-        """Generate detailed Word document summary"""
+    def _analyze_excel_purpose(self, worksheets, formula_count, insights, themes):
+        """Analyze the purpose and use case of an Excel document"""
         
-        # Basic document info  
-        file_name = word_analysis.filename
-        word_count = word_analysis.total_words
-        page_count = word_analysis.page_count
-        headings_count = len(word_analysis.headings)
-        tables_count = word_analysis.tables_count
+        # Extract worksheet names for context
+        sheet_names = [sheet.name.lower() if hasattr(sheet, 'name') else f'sheet{i+1}' 
+                      for i, sheet in enumerate(worksheets)] if worksheets else ['sheet1']
         
-        # Document type classification
-        if headings_count > 10 and word_count > 2000:
-            doc_type = "comprehensive report or detailed documentation"
-        elif headings_count > 5:
-            doc_type = "structured business document"
-        elif tables_count > 3:
-            doc_type = "data-rich report with tabular information"
-        elif word_count > 1000:
-            doc_type = "detailed written document"
+        # Purpose detection based on sheet names and content
+        purpose_indicators = {
+            'financial': ['budget', 'finance', 'revenue', 'cost', 'profit', 'income', 'expense', 'cash', 'forecast'],
+            'project': ['project', 'task', 'timeline', 'gantt', 'milestone', 'tracker', 'status'],
+            'inventory': ['inventory', 'stock', 'products', 'items', 'warehouse', 'supply'],
+            'hr': ['employee', 'staff', 'payroll', 'hr', 'human', 'performance', 'attendance'],
+            'sales': ['sales', 'customer', 'lead', 'crm', 'pipeline', 'target', 'quota'],
+            'reporting': ['report', 'dashboard', 'metrics', 'kpi', 'analysis', 'summary'],
+            'planning': ['plan', 'strategy', 'goal', 'objective', 'roadmap', 'schedule']
+        }
+        
+        detected_purposes = []
+        for purpose, keywords in purpose_indicators.items():
+            if any(keyword in ' '.join(sheet_names) for keyword in keywords):
+                detected_purposes.append(purpose)
+        
+        # Complexity-based analysis
+        if formula_count > 100:
+            complexity_level = "enterprise-grade"
+            likely_users = "finance teams, analysts, or executives"
+            maintenance_level = "professionally maintained with regular updates"
+        elif formula_count > 50:
+            complexity_level = "advanced"
+            likely_users = "business analysts or department managers"  
+            maintenance_level = "regularly maintained by power users"
+        elif formula_count > 10:
+            complexity_level = "intermediate"
+            likely_users = "team leads or specialized staff"
+            maintenance_level = "periodically updated as needed"
         else:
-            doc_type = "brief business document"
+            complexity_level = "basic"
+            likely_users = "general office workers"
+            maintenance_level = "simple and easy to maintain"
         
-        # Content analysis
-        content_focus = ""
+        # Primary purpose determination
+        if 'financial' in detected_purposes:
+            primary_purpose = "financial planning, budgeting, or economic analysis"
+            document_type = "financial planning workbook"
+        elif 'project' in detected_purposes:
+            primary_purpose = "project management and progress tracking"
+            document_type = "project tracking system"
+        elif 'sales' in detected_purposes:
+            primary_purpose = "sales performance monitoring and customer relationship management"
+            document_type = "sales management tool"
+        elif 'reporting' in detected_purposes:
+            primary_purpose = "business reporting and performance analytics"
+            document_type = "reporting dashboard"
+        elif len(detected_purposes) > 1:
+            primary_purpose = f"integrated business operations covering {', '.join(detected_purposes[:2])}"
+            document_type = "multi-purpose business workbook"
+        else:
+            primary_purpose = "data organization and basic calculations"
+            document_type = "general spreadsheet tool"
+        
+        return {
+            'primary_purpose': primary_purpose,
+            'document_type': document_type,
+            'likely_users': likely_users,
+            'use_cases': f"{primary_purpose} with {complexity_level} complexity",
+            'maintenance_level': maintenance_level,
+            'target_audience': likely_users.split(' or ')[0] if ' or ' in likely_users else likely_users,
+            'main_function': primary_purpose.split(' and ')[0] if ' and ' in primary_purpose else primary_purpose,
+            'criticality_assessment': f"a {complexity_level}-level business tool",
+            'organizational_purpose': primary_purpose,
+            'functional_role': f"a {document_type.replace('workbook', '').replace('tool', '').replace('system', '').strip()} resource",
+            'department_focus': detected_purposes[0] if detected_purposes else 'general business',
+            'industry_pattern': f"{detected_purposes[0] if detected_purposes else 'business'} workflows",
+            'usage_frequency': 'regularly used' if formula_count > 10 else 'occasionally referenced',
+            'simple_analysis': f"This represents a {complexity_level} tool for {primary_purpose}",
+            'utility_type': f"a practical {document_type}",
+            'practical_use': f"supports {primary_purpose}",
+            'accessibility': 'easy use' if formula_count < 20 else 'specialized knowledge',
+            'maintenance_ease': 'straightforward maintenance' if formula_count < 20 else 'requires expertise'
+        }
+    
+    def _extract_business_intelligence(self, worksheets, formula_analysis, insights):
+        """Extract business intelligence from Excel analysis"""
+        
+        # Analyze business value
+        if formula_analysis.get('total_formulas', 0) > 50:
+            business_value = "significant business value as a critical analytical tool"
+            operational_role = "plays a key role in business decision-making processes"
+            narrative = "The extensive use of formulas suggests sophisticated business logic for automated calculations and scenario analysis."
+        elif formula_analysis.get('total_formulas', 0) > 10:
+            business_value = "meaningful business utility for operational tasks"
+            operational_role = "supports important business functions"
+            narrative = "The calculation complexity indicates this workbook automates key business processes and reduces manual effort."
+        else:
+            business_value = "basic business utility for simple tasks"
+            operational_role = "serves as a simple tool for data organization"
+            narrative = "The straightforward design focuses on data storage and basic calculations rather than complex analysis."
+        
+        # Data insights based on structure
+        if len(worksheets) > 5:
+            data_insights = "The multi-sheet organization suggests comprehensive data management with clear separation of concerns across different business areas."
+        elif len(worksheets) > 2:
+            data_insights = "The structured approach with multiple sheets indicates organized data flow and logical business process separation."
+        else:
+            data_insights = "The single-sheet design prioritizes simplicity and ease of use over complex data organization."
+        
+        # Basic insights for simple documents
+        basic_insights = narrative.replace('sophisticated business logic', 'practical functionality').replace('extensive use', 'use')
+        
+        return {
+            'business_value': business_value,
+            'operational_role': operational_role,
+            'narrative': narrative,
+            'data_insights': data_insights,
+            'basic_insights': basic_insights
+        }
+    
+    def _generate_risk_narrative(self, risks):
+        """Generate narrative about risks"""
+        if not risks:
+            return "No significant risks were identified in the current analysis."
+        elif len(risks) > 3:
+            return f"Analysis identified {len(risks)} potential risk areas that should be reviewed for business continuity and data integrity."
+        else:
+            return f"There are {len(risks)} areas flagged for attention, though they appear manageable with proper oversight."
+    
+    def _generate_efficiency_insights(self, formula_count, worksheet_count):
+        """Generate insights about efficiency and optimization"""
+        if formula_count > 50 and worksheet_count > 3:
+            return "The complexity suggests opportunities for automation and process optimization could yield significant time savings."
+        elif formula_count > 20:
+            return "The structured calculations indicate this workbook already provides good efficiency gains over manual processes."
+        else:
+            return "The straightforward design prioritizes usability and maintenance simplicity."
+
+    def _generate_word_summary(self, word_analysis, intelligent_analysis):
+        """Generate intelligent, LLM-like Word document summary"""
+        
+        # Safe data extraction
+        file_name = getattr(word_analysis, 'filename', 'Unknown document')
+        word_count = getattr(word_analysis, 'total_words', 0)
+        page_count = getattr(word_analysis, 'page_count', 1)
+        headings = getattr(word_analysis, 'headings', [])
+        if isinstance(headings, bool):
+            headings = []
+        headings_count = len(headings) if headings else 0
+        tables_count = getattr(word_analysis, 'tables_count', 0)
+        
         themes = getattr(intelligent_analysis, 'themes', [])
-        if 'strategy' in themes:
-            content_focus += " focused on strategic planning"
-        elif 'finance' in themes:
-            content_focus += " with financial analysis content"
-        elif 'project' in themes:
-            content_focus += " related to project management"
-        elif themes:
-            content_focus += f" covering {', '.join(themes).lower()} topics"
+        if isinstance(themes, bool):
+            themes = []
+        insights = getattr(intelligent_analysis, 'key_insights', [])
+        risks = getattr(intelligent_analysis, 'risk_indicators', [])
         
-        # Reading time and complexity
-        reading_time = word_analysis.reading_time
-        time_desc = f"approximately {reading_time:.1f} minutes to read"
+        # Intelligent document analysis
+        doc_purpose = self._analyze_word_purpose(headings, word_count, themes, tables_count)
+        content_intelligence = self._extract_content_intelligence(word_count, headings_count, themes, insights)
         
-        summary = f"""
-        This Word document "{file_name}" is a {doc_type}{content_focus}. 
-        
-        The document spans {page_count} page{"s" if page_count != 1 else ""} with {word_count:,} words and takes {time_desc}. 
-        It contains {headings_count} heading{"s" if headings_count != 1 else ""} and {tables_count} table{"s" if tables_count != 1 else ""}, 
-        suggesting {"well-structured content" if headings_count > 0 else "simple formatting"}.
-        
-        {getattr(intelligent_analysis, 'summary', 'Document analysis completed.')}
-        
-        This document appears to be {"a formal business report" if headings_count > 3 else "an informal document"} 
-        suitable for {"executive review" if word_count > 1500 else "quick reference"}.
-        """
+        # Generate human-like narrative based on document characteristics
+        if word_count > 5000 and headings_count > 10:
+            summary = f""""{file_name}" is a comprehensive professional document that demonstrates significant depth and structured thinking. With {word_count:,} words across {page_count} pages and {headings_count} organized sections, this represents {doc_purpose['document_significance']}.
+
+{content_intelligence['professional_assessment']} The substantial length and detailed organization suggest this is {doc_purpose['intended_use']} designed for {doc_purpose['target_readers']}.
+
+{self._analyze_document_sophistication(headings_count, tables_count, themes)} This level of detail indicates the document serves as {doc_purpose['business_function']} and likely requires {content_intelligence['expertise_level']} to fully utilize."""
+
+        elif word_count > 2000 and headings_count > 5:
+            summary = f""""{file_name}" is a well-structured business document spanning {page_count} pages with {word_count:,} words. The {headings_count} headings indicate {doc_purpose['organizational_approach']} and suggest this is used for {doc_purpose['primary_function']}.
+
+{content_intelligence['structural_analysis']} The document appears to be {doc_purpose['formality_level']} that {doc_purpose['practical_application']}.
+
+{self._assess_document_utility(word_count, themes)} Overall, this represents {doc_purpose['business_value']} that would be most valuable to {doc_purpose['key_stakeholders']}."""
+
+        elif word_count > 500:
+            summary = f""""{file_name}" is a focused document with {word_count:,} words {"and " + str(headings_count) + " section" + ("s" if headings_count != 1 else "") if headings_count > 0 else ""}. {doc_purpose['concise_assessment']}.
+
+{content_intelligence['content_evaluation']} The structure suggests this document is {doc_purpose['usability_focus']} and designed for {doc_purpose['accessibility_level']}.
+
+{self._evaluate_document_efficiency(word_count, page_count)} This appears to be {doc_purpose['document_category']} that {doc_purpose['operational_purpose']}."""
+
+        else:
+            summary = f""""{file_name}" is a brief document with {word_count} words. {doc_purpose['brevity_analysis']}.
+
+{content_intelligence['simple_evaluation']} This type of document typically serves as {doc_purpose['simple_function']} for {doc_purpose['quick_reference_use']}.
+
+The concise format suggests it's designed for {doc_purpose['efficiency_focus']} and {doc_purpose['ease_of_use']}."""
         
         return summary.strip()
+    
+    def _analyze_word_purpose(self, headings, word_count, themes, tables_count):
+        """Analyze the purpose and business context of a Word document"""
+        
+        # Extract heading content for analysis
+        heading_text = ' '.join([h.get('text', '').lower() for h in headings if isinstance(h, dict)])
+        
+        # Purpose indicators
+        purpose_patterns = {
+            'report': ['report', 'analysis', 'findings', 'summary', 'results', 'conclusion'],
+            'proposal': ['proposal', 'recommendation', 'suggestion', 'plan', 'strategy', 'approach'],
+            'policy': ['policy', 'procedure', 'guidelines', 'standards', 'requirements', 'compliance'],
+            'manual': ['manual', 'guide', 'instructions', 'tutorial', 'how-to', 'process'],
+            'contract': ['agreement', 'contract', 'terms', 'conditions', 'legal', 'binding'],
+            'presentation': ['presentation', 'overview', 'introduction', 'executive', 'brief']
+        }
+        
+        detected_type = 'general business document'
+        for doc_type, keywords in purpose_patterns.items():
+            if any(keyword in heading_text for keyword in keywords):
+                detected_type = f"{doc_type} document"
+                break
+        
+        # Complexity and significance assessment
+        if word_count > 5000:
+            document_significance = "a substantial piece of business documentation requiring significant investment of time and expertise"
+            intended_use = "a comprehensive resource for strategic decision-making or detailed reference"
+            business_function = "a critical business reference or decision-making tool"
+            formality_level = "a formal, professional document"
+        elif word_count > 2000:
+            document_significance = "a significant business document with considerable detail"
+            intended_use = "an important reference for business operations or planning"
+            business_function = "a key business communication or planning document" 
+            formality_level = "a structured business document"
+        else:
+            document_significance = "a focused communication piece"
+            intended_use = "practical business communication"
+            business_function = "a straightforward business tool"
+            formality_level = "an accessible business document"
+        
+        # Target audience based on complexity
+        if word_count > 3000 and len(headings) > 8:
+            target_readers = "executives, specialists, or stakeholders requiring detailed information"
+            key_stakeholders = "senior management or subject matter experts"
+            expertise_level = "specialized knowledge or significant time investment"
+        elif word_count > 1000:
+            target_readers = "business professionals or team members"
+            key_stakeholders = "department managers or project teams"
+            expertise_level = "business familiarity and moderate attention"
+        else:
+            target_readers = "general business audience"
+            key_stakeholders = "team members or general staff"
+            expertise_level = "basic business understanding"
+        
+        return {
+            'document_significance': document_significance,
+            'intended_use': intended_use,
+            'target_readers': target_readers,
+            'business_function': business_function,
+            'formality_level': formality_level,
+            'key_stakeholders': key_stakeholders,
+            'organizational_approach': f"careful organization and structured presentation",
+            'primary_function': f"business communication and information management",
+            'practical_application': f"serves as a {detected_type} for business purposes",
+            'business_value': f"a valuable {detected_type}",
+            'concise_assessment': f"This represents a {detected_type.replace('document', '').strip()} with focused content",
+            'usability_focus': "designed for practical business use",
+            'accessibility_level': "straightforward access and understanding",
+            'document_category': f"a practical {detected_type}",
+            'operational_purpose': "supports specific business needs",
+            'brevity_analysis': f"This appears to be a concise {detected_type.replace('general business document', 'communication')}",
+            'simple_function': f"quick reference or brief communication",
+            'quick_reference_use': "immediate business needs",
+            'efficiency_focus': "quick consumption",
+            'ease_of_use': "minimal time investment"
+        }
+    
+    def _extract_content_intelligence(self, word_count, headings_count, themes, insights):
+        """Extract intelligence about document content and structure"""
+        
+        if word_count > 3000:
+            professional_assessment = "The extensive content demonstrates thorough research and comprehensive coverage of the subject matter."
+            expertise_level = "significant expertise or substantial time"
+        elif word_count > 1000:
+            professional_assessment = "The content depth indicates solid preparation and structured thinking."
+            expertise_level = "moderate expertise and focused attention"
+        else:
+            professional_assessment = "The concise approach suggests efficient communication and clear priorities."
+            expertise_level = "basic familiarity"
+        
+        if headings_count > 8:
+            structural_analysis = "The detailed organization with multiple sections indicates comprehensive planning and systematic approach to the subject."
+        elif headings_count > 3:
+            structural_analysis = "The structured layout suggests organized thinking and clear communication objectives."
+        else:
+            structural_analysis = "The straightforward structure prioritizes clarity and ease of reading."
+        
+        # Content evaluation
+        if themes and len(themes) > 2:
+            content_evaluation = f"The document covers multiple business areas including {', '.join(themes[:3])}, indicating broad scope and integrated thinking."
+        elif themes and len(themes) > 0:
+            content_evaluation = f"The content focuses on {themes[0]} with clear business relevance and practical applications."
+        else:
+            content_evaluation = "The content appears focused on practical business communication."
+        
+        simple_evaluation = "The brief format suggests targeted communication for specific business needs."
+        
+        return {
+            'professional_assessment': professional_assessment,
+            'expertise_level': expertise_level,
+            'structural_analysis': structural_analysis,
+            'content_evaluation': content_evaluation,
+            'simple_evaluation': simple_evaluation
+        }
+    
+    def _analyze_document_sophistication(self, headings_count, tables_count, themes):
+        """Analyze document sophistication level"""
+        sophistication_indicators = []
+        
+        if headings_count > 10:
+            sophistication_indicators.append("highly organized structure")
+        if tables_count > 2:
+            sophistication_indicators.append("data-driven content")
+        if len(themes) > 3:
+            sophistication_indicators.append("multi-faceted business analysis")
+        
+        if sophistication_indicators:
+            return f"The document demonstrates {', '.join(sophistication_indicators)}, indicating professional preparation and strategic thinking."
+        else:
+            return "The document shows clear organization and professional presentation."
+    
+    def _assess_document_utility(self, word_count, themes):
+        """Assess the practical utility of the document"""
+        if word_count > 2000 and themes:
+            return f"Given its scope and {len(themes)} thematic areas, this document provides comprehensive value for business planning and decision-making."
+        elif word_count > 1000:
+            return "The substantial content provides good depth for business reference and operational guidance."
+        else:
+            return "The focused content delivers targeted value for specific business needs."
+    
+    def _evaluate_document_efficiency(self, word_count, page_count):
+        """Evaluate document efficiency and readability"""
+        words_per_page = word_count / max(page_count, 1)
+        
+        if words_per_page > 400:
+            return "The information density suggests comprehensive coverage with efficient use of space."
+        elif words_per_page > 200:
+            return "The balanced content density provides good information value with readable formatting."
+        else:
+            return "The comfortable information density prioritizes readability and ease of consumption."
 
 def main():
     """Main application entry point"""
