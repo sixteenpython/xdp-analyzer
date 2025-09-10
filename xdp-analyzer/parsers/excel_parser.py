@@ -158,8 +158,132 @@ class AdvancedExcelParser:
         wb.close()
         return analysis
     
-    # Additional methods would continue here...
-    # (Truncated for brevity - the full implementation is quite long)
+    def _extract_vba_openpyxl(self, workbook) -> Dict[str, str]:
+        """Extract VBA code from Excel workbook using openpyxl"""
+        vba_code = {}
+        
+        try:
+            # Check if workbook has VBA project
+            if not hasattr(workbook, 'vba_archive') or not workbook.vba_archive:
+                return vba_code
+            
+            # Note: openpyxl doesn't fully support VBA extraction
+            # For now, we'll detect presence and provide placeholder
+            vba_code['vba_detected'] = "VBA macros detected but extraction requires additional tools"
+            vba_code['modules_count'] = "Unable to determine with openpyxl"
+            
+        except Exception as e:
+            self.logger.warning(f"VBA extraction failed: {str(e)}")
+            vba_code['error'] = f"VBA extraction error: {str(e)}"
+        
+        return vba_code
+    
+    def _analyze_formulas(self, worksheets: List[WorksheetInfo]) -> Dict[str, Any]:
+        """Analyze formulas across worksheets"""
+        formulas_summary = {
+            'total_formulas': 0,
+            'unique_functions': set(),
+            'complex_formulas': [],
+            'external_references': [],
+            'circular_references': []
+        }
+        
+        for worksheet in worksheets:
+            for formula_info in worksheet.formulas:
+                formulas_summary['total_formulas'] += 1
+                
+                formula = formula_info.get('formula', '')
+                if formula:
+                    # Extract functions used
+                    functions = re.findall(r'([A-Z]+)\(', formula)
+                    formulas_summary['unique_functions'].update(functions)
+                    
+                    # Identify complex formulas (nested functions, arrays, etc.)
+                    if len(functions) > 3 or 'ARRAY' in formula or '{' in formula:
+                        formulas_summary['complex_formulas'].append({
+                            'worksheet': worksheet.name,
+                            'cell': formula_info.get('cell', ''),
+                            'formula': formula
+                        })
+        
+        formulas_summary['unique_functions'] = list(formulas_summary['unique_functions'])
+        return formulas_summary
+    
+    def _extract_business_logic(self, worksheets: List[WorksheetInfo]) -> Dict[str, Any]:
+        """Extract business logic patterns from worksheets"""
+        business_logic = {
+            'decision_trees': [],
+            'lookup_tables': [],
+            'calculation_chains': [],
+            'business_rules': []
+        }
+        
+        for worksheet in worksheets:
+            # Look for IF statements (decision logic)
+            for formula_info in worksheet.formulas:
+                formula = formula_info.get('formula', '')
+                if 'IF(' in formula:
+                    business_logic['decision_trees'].append({
+                        'worksheet': worksheet.name,
+                        'cell': formula_info.get('cell', ''),
+                        'logic': formula
+                    })
+                
+                # Look for VLOOKUP/INDEX-MATCH (lookup tables)
+                if any(func in formula for func in ['VLOOKUP', 'INDEX', 'MATCH']):
+                    business_logic['lookup_tables'].append({
+                        'worksheet': worksheet.name,
+                        'cell': formula_info.get('cell', ''),
+                        'formula': formula
+                    })
+        
+        return business_logic
+    
+    def _map_data_flow(self, worksheets: List[WorksheetInfo]) -> Dict[str, Any]:
+        """Map data flow between worksheets"""
+        data_flow = {
+            'internal_references': [],
+            'external_links': [],
+            'worksheet_dependencies': {}
+        }
+        
+        for worksheet in worksheets:
+            dependencies = []
+            for formula_info in worksheet.formulas:
+                formula = formula_info.get('formula', '')
+                # Look for sheet references
+                sheet_refs = re.findall(r"'?([^'!]+)'?!", formula)
+                dependencies.extend(sheet_refs)
+            
+            if dependencies:
+                data_flow['worksheet_dependencies'][worksheet.name] = list(set(dependencies))
+        
+        return data_flow
+    
+    def _calculate_complexity_metrics(self, analysis) -> Dict[str, Any]:
+        """Calculate complexity metrics for the Excel file"""
+        metrics = {
+            'total_worksheets': len(analysis.worksheets),
+            'total_formulas': analysis.formulas_summary.get('total_formulas', 0),
+            'unique_functions': len(analysis.formulas_summary.get('unique_functions', [])),
+            'complexity_score': 0
+        }
+        
+        # Simple complexity scoring
+        base_score = metrics['total_worksheets'] * 5
+        formula_score = metrics['total_formulas'] * 2
+        function_score = metrics['unique_functions'] * 3
+        
+        metrics['complexity_score'] = base_score + formula_score + function_score
+        
+        if metrics['complexity_score'] > 100:
+            metrics['complexity_level'] = 'High'
+        elif metrics['complexity_score'] > 50:
+            metrics['complexity_level'] = 'Medium'
+        else:
+            metrics['complexity_level'] = 'Low'
+        
+        return metrics
     
     def export_analysis(self, analysis: ExcelAnalysis, output_path: str) -> None:
         """Export analysis results to JSON"""
