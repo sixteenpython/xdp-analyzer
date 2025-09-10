@@ -13,7 +13,7 @@ from typing import Dict, List, Optional, Any, Union
 import re
 import json
 import logging
-from dataclasses import dataclass, asdict
+from dataclasses import dataclass, asdict, field
 from pathlib import Path
 import numpy as np
 from openpyxl.formula.translate import Translator
@@ -48,9 +48,9 @@ class WorksheetInfo:
     named_ranges: List[Dict]
     formulas: List[Dict]
     vba_references: List[str]
-    hidden: bool
-    protected: bool
-    dimensions: Dict[str, int]
+    hidden: bool = False
+    protected: bool = False
+    dimensions: Dict[str, Any] = field(default_factory=dict)
 
 @dataclass
 class ExcelAnalysis:
@@ -158,6 +158,304 @@ class AdvancedExcelParser:
         wb.close()
         return analysis
     
+    def _extract_defined_names(self, workbook) -> List[Dict]:
+        """Extract defined names/named ranges from Excel workbook"""
+        defined_names = []
+        
+        try:
+            # Check if workbook has defined names
+            if hasattr(workbook, 'defined_names') and workbook.defined_names:
+                for name in workbook.defined_names.definedName:
+                    defined_names.append({
+                        'name': name.name,
+                        'value': str(name.value) if name.value else '',
+                        'scope': name.localSheetId if hasattr(name, 'localSheetId') else None,
+                        'hidden': name.hidden if hasattr(name, 'hidden') else False,
+                        'comment': getattr(name, 'comment', '')
+                    })
+        except Exception as e:
+            self.logger.warning(f"Failed to extract defined names: {str(e)}")
+        
+        return defined_names
+    
+    def _extract_custom_properties(self, workbook) -> Dict:
+        """Extract custom document properties"""
+        properties = {}
+        
+        try:
+            # Access custom document properties
+            if hasattr(workbook, 'custom_doc_props'):
+                for prop in workbook.custom_doc_props:
+                    properties[prop.name] = prop.value
+            
+            # Also try core properties
+            if hasattr(workbook, 'properties'):
+                core_props = workbook.properties
+                properties.update({
+                    'title': core_props.title if core_props.title else '',
+                    'author': core_props.creator if core_props.creator else '',
+                    'subject': core_props.subject if core_props.subject else '',
+                    'description': core_props.description if core_props.description else '',
+                    'keywords': core_props.keywords if core_props.keywords else '',
+                    'created': str(core_props.created) if core_props.created else '',
+                    'modified': str(core_props.modified) if core_props.modified else ''
+                })
+                
+        except Exception as e:
+            self.logger.warning(f"Failed to extract custom properties: {str(e)}")
+        
+        return properties
+    
+    def _process_worksheet_openpyxl(self, worksheet) -> WorksheetInfo:
+        """Process individual worksheet comprehensively"""
+        cells = []
+        formulas = []
+        charts = []
+        pivot_tables = []
+        data_validation = []
+        conditional_formatting = []
+        named_ranges = []
+        
+        try:
+            # Process cells with data (limit to avoid memory issues)
+            row_count = 0
+            max_rows = 1000  # Limit for performance
+            
+            for row in worksheet.iter_rows(values_only=False):
+                if row_count >= max_rows:
+                    break
+                    
+                for cell in row:
+                    if cell.value is not None:
+                        # Basic cell info
+                        cell_info = CellInfo(
+                            address=cell.coordinate,
+                            value=cell.value,
+                            formula=cell.formula if hasattr(cell, 'formula') and cell.formula else None,
+                            data_type=str(type(cell.value).__name__),
+                            number_format=cell.number_format if cell.number_format else 'General',
+                            comment=cell.comment.text if cell.comment else None,
+                            hyperlink=cell.hyperlink.target if cell.hyperlink else None,
+                            font_info={
+                                'name': cell.font.name if cell.font else 'Calibri',
+                                'size': cell.font.size if cell.font else 11,
+                                'bold': cell.font.bold if cell.font else False
+                            },
+                            fill_info={
+                                'color': str(cell.fill.fgColor.rgb) if cell.fill and hasattr(cell.fill.fgColor, 'rgb') else None,
+                                'pattern': cell.fill.patternType if cell.fill else None
+                            },
+                            is_merged=self._is_merged_cell(worksheet, cell.coordinate),
+                            merge_range=None  # Could be enhanced later
+                        )
+                        cells.append(cell_info)
+                        
+                        # Extract formula information
+                        if cell.formula:
+                            formula_info = {
+                                'cell': cell.coordinate,
+                                'formula': cell.formula,
+                                'functions': self._extract_formula_functions(cell.formula),
+                                'complexity': self._calculate_formula_complexity(cell.formula),
+                                'references': self._extract_formula_references(cell.formula)
+                            }
+                            formulas.append(formula_info)
+                
+                row_count += 1
+            
+            # Extract charts
+            if hasattr(worksheet, '_charts'):
+                for chart in worksheet._charts:
+                    chart_info = {
+                        'type': chart.__class__.__name__,
+                        'title': str(chart.title) if hasattr(chart, 'title') and chart.title else '',
+                        'anchor': str(chart.anchor) if hasattr(chart, 'anchor') else '',
+                        'series_count': len(chart.series) if hasattr(chart, 'series') else 0
+                    }
+                    charts.append(chart_info)
+            
+            # Extract pivot tables (basic detection)
+            if hasattr(worksheet, '_pivots'):
+                for pivot in worksheet._pivots:
+                    pivot_info = {
+                        'name': getattr(pivot, 'name', 'Unknown'),
+                        'cache_definition': str(getattr(pivot, 'cache_definition', '')),
+                        'location': str(getattr(pivot, 'location', ''))
+                    }
+                    pivot_tables.append(pivot_info)
+            
+        except Exception as e:
+            self.logger.warning(f"Error processing worksheet {worksheet.title}: {str(e)}")
+        
+        return WorksheetInfo(
+            name=worksheet.title,
+            cells=cells,
+            charts=charts,
+            pivot_tables=pivot_tables,
+            data_validation=data_validation,
+            conditional_formatting=conditional_formatting,
+            named_ranges=named_ranges,
+            formulas=formulas,
+            vba_references=[],
+            hidden=worksheet.sheet_state == 'hidden' if hasattr(worksheet, 'sheet_state') else False,
+            protected=worksheet.protection.enabled if hasattr(worksheet, 'protection') else False,
+            dimensions={
+                'max_row': worksheet.max_row,
+                'max_column': worksheet.max_column,
+                'used_range': f"A1:{worksheet.calculate_dimension()}" if hasattr(worksheet, 'calculate_dimension') else ""
+            }
+        )
+    
+    def _is_merged_cell(self, worksheet, coordinate):
+        """Check if cell is part of merged range"""
+        try:
+            for merged_range in worksheet.merged_cells.ranges:
+                if coordinate in merged_range:
+                    return True
+        except:
+            pass
+        return False
+    
+    def _extract_formula_functions(self, formula: str) -> List[str]:
+        """Extract function names from formula"""
+        if not formula:
+            return []
+        
+        # Find all function names (uppercase words followed by parentheses)
+        functions = re.findall(r'([A-Z][A-Z0-9_]*)\s*\(', formula.upper())
+        return list(set(functions))
+    
+    def _calculate_formula_complexity(self, formula: str) -> int:
+        """Calculate complexity score for formula"""
+        if not formula:
+            return 0
+        
+        complexity = 0
+        
+        # Count nested levels (parentheses depth)
+        max_depth = 0
+        current_depth = 0
+        for char in formula:
+            if char == '(':
+                current_depth += 1
+                max_depth = max(max_depth, current_depth)
+            elif char == ')':
+                current_depth -= 1
+        
+        complexity += max_depth * 2
+        
+        # Count functions
+        functions = self._extract_formula_functions(formula)
+        complexity += len(functions)
+        
+        # Count operators
+        operators = len(re.findall(r'[+\-*/^&<>=]', formula))
+        complexity += operators
+        
+        # Count references
+        references = len(re.findall(r'[A-Z]+[0-9]+|[A-Z]+:[A-Z]+', formula))
+        complexity += references
+        
+        return complexity
+    
+    def _extract_formula_references(self, formula: str) -> List[str]:
+        """Extract cell/range references from formula"""
+        if not formula:
+            return []
+        
+        # Find cell references (A1, B2:C3, etc.)
+        references = re.findall(r'[A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?', formula.upper())
+        
+        # Find sheet references (Sheet1!A1, 'Sheet Name'!A1:B2)
+        sheet_refs = re.findall(r"(?:'[^']*'|[^!\s]+)![A-Z]+[0-9]+(?::[A-Z]+[0-9]+)?", formula)
+        references.extend(sheet_refs)
+        
+        return list(set(references))
+    
+    def _parse_xlsb(self, file_path: Path) -> ExcelAnalysis:
+        """Parse Excel Binary (.xlsb) files using pyxlsb"""
+        self.logger.info(f"Parsing XLSB file: {file_path}")
+        
+        try:
+            # Basic analysis structure for XLSB
+            analysis = ExcelAnalysis(
+                filename=file_path.name,
+                file_size=file_path.stat().st_size,
+                worksheets=[],
+                vba_code={},
+                defined_names=[],
+                custom_properties={},
+                formulas_summary={},
+                business_logic={},
+                data_flow={},
+                complexity_metrics={}
+            )
+            
+            # Note: Full XLSB parsing requires pyxlsb library
+            # For now, provide basic structure
+            analysis.worksheets.append(WorksheetInfo(
+                name="XLSB_Placeholder",
+                cells=[],
+                charts=[],
+                pivot_tables=[],
+                data_validation=[],
+                conditional_formatting=[],
+                named_ranges=[],
+                formulas=[],
+                vba_references=[],
+                hidden=False,
+                protected=False,
+                dimensions={'note': 'XLSB parsing requires additional implementation'}
+            ))
+            
+            return analysis
+            
+        except Exception as e:
+            self.logger.error(f"Failed to parse XLSB file: {str(e)}")
+            raise
+    
+    def _parse_xls(self, file_path: Path) -> ExcelAnalysis:
+        """Parse legacy Excel (.xls) files using xlrd"""
+        self.logger.info(f"Parsing XLS file: {file_path}")
+        
+        try:
+            # Basic analysis structure for XLS
+            analysis = ExcelAnalysis(
+                filename=file_path.name,
+                file_size=file_path.stat().st_size,
+                worksheets=[],
+                vba_code={},
+                defined_names=[],
+                custom_properties={},
+                formulas_summary={},
+                business_logic={},
+                data_flow={},
+                complexity_metrics={}
+            )
+            
+            # Note: Full XLS parsing requires xlrd library
+            # For now, provide basic structure
+            analysis.worksheets.append(WorksheetInfo(
+                name="XLS_Placeholder", 
+                cells=[],
+                charts=[],
+                pivot_tables=[],
+                data_validation=[],
+                conditional_formatting=[],
+                named_ranges=[],
+                formulas=[],
+                vba_references=[],
+                hidden=False,
+                protected=False,
+                dimensions={'note': 'XLS parsing requires additional implementation'}
+            ))
+            
+            return analysis
+            
+        except Exception as e:
+            self.logger.error(f"Failed to parse XLS file: {str(e)}")
+            raise
+
     def _extract_vba_openpyxl(self, workbook) -> Dict[str, str]:
         """Extract VBA code from Excel workbook using openpyxl"""
         vba_code = {}
