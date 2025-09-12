@@ -98,6 +98,7 @@ class EnhancedDocumentSummarizer:
                 'purpose': 'sales performance tracking and revenue management',
                 'audience': 'sales teams, sales managers, and revenue executives',
                 'insights_focus': ['sales trends', 'customer behavior', 'territory performance', 'pipeline health']
+<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
             },
             'creative_content': {
                 'keywords': ['screenplay', 'script', 'scene', 'character', 'dialogue', 'act', 'fade in', 'fade out', 'int.', 'ext.', 'voice over', 'montage'],
@@ -128,6 +129,8 @@ class EnhancedDocumentSummarizer:
                 'purpose': 'marketing performance analysis and campaign optimization',
                 'audience': 'marketing teams, digital marketers, and growth analysts',
                 'insights_focus': ['campaign performance', 'audience insights', 'channel effectiveness', 'conversion optimization']
+=======
+>>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
             }
         }
     
@@ -244,6 +247,7 @@ class EnhancedDocumentSummarizer:
             r'\b(inventory|production|sales|marketing|operations|hr)\b'
         ]
         
+<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
         # Creative content patterns
         creative_patterns = [
             r'\b(screenplay|script|scene|character|dialogue|act|scene)\b',
@@ -258,10 +262,13 @@ class EnhancedDocumentSummarizer:
             r'\b(project|phase|sprint|iteration|backlog)\b'
         ]
         
+=======
+>>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
         for pattern in process_patterns:
             matches = re.findall(pattern, all_text)
             indicators['business_processes'].extend(matches)
         
+<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
         # Add creative content indicators
         for pattern in creative_patterns:
             matches = re.findall(pattern, all_text)
@@ -272,6 +279,8 @@ class EnhancedDocumentSummarizer:
             matches = re.findall(pattern, all_text)
             indicators['business_processes'].extend(matches)
         
+=======
+>>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
         # Time periods
         time_patterns = [
             r'\b(daily|weekly|monthly|quarterly|yearly|annual)\b',
@@ -300,6 +309,7 @@ class EnhancedDocumentSummarizer:
         context_scores = {}
         for context_type, patterns in self.business_context_patterns.items():
             score = 0
+<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
             keyword_matches = 0
             
             # Check keywords in content with higher weighting for exact matches
@@ -310,11 +320,21 @@ class EnhancedDocumentSummarizer:
                 if keyword.lower() in filename:
                     score += 5
                     keyword_matches += 1
+=======
+            
+            # Check keywords in content
+            for keyword in patterns['keywords']:
+                if keyword in all_text:
+                    score += 2
+                if keyword in filename:
+                    score += 3
+>>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
             
             # Check in business indicators
             indicators = document_context.get('business_indicators', {})
             for indicator_list in indicators.values():
                 for indicator in indicator_list:
+<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
                     if any(keyword.lower() in indicator.lower() for keyword in patterns['keywords']):
                         score += 2
                         keyword_matches += 1
@@ -359,13 +379,29 @@ class EnhancedDocumentSummarizer:
                 
             final_confidence = max(0.1, min(0.95, base_confidence + content_bonus - ambiguity_penalty))
             context_info['confidence'] = final_confidence
+=======
+                    if any(keyword in indicator for keyword in patterns['keywords']):
+                        score += 1
+            
+            context_scores[context_type] = score
+        
+        # Get best matching context
+        if context_scores:
+            best_context = max(context_scores.items(), key=lambda x: x[1])[0]
+            context_info = self.business_context_patterns[best_context].copy()
+            context_info['confidence'] = context_scores[best_context] / 10  # Normalize
+>>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
         else:
             best_context = 'general_analysis'
             context_info = {
                 'purpose': 'general data analysis and business intelligence',
                 'audience': 'business stakeholders and decision makers',
                 'insights_focus': ['data patterns', 'business metrics', 'performance indicators'],
+<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
                 'confidence': 0.2  # Low confidence for unclear content
+=======
+                'confidence': 0.3
+>>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
             }
         
         context_info['type'] = best_context
@@ -683,6 +719,7 @@ class EnhancedDocumentSummarizer:
             else:
                 return f"This data repository workbook ({filename}) contains {ws_count} worksheets with structured business data. It's designed as a foundational dataset for business intelligence analysis, providing organized information for identifying trends, patterns, and performance metrics to support data-driven decision making."
         
+<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
         elif context_type == 'creative_content':
             creative_indicators = indicators.get('document_type_clues', [])
             if any(term in creative_indicators for term in ['screenplay', 'script', 'scene', 'character']):
@@ -696,6 +733,8 @@ class EnhancedDocumentSummarizer:
         elif context_type == 'hr_personnel':
             return f"{filename} is a human resources management workbook containing {ws_count} worksheets focused on personnel data and HR analytics. This document supports HR teams in managing employee information, tracking performance metrics, and analyzing workforce patterns for strategic HR decision-making."
         
+=======
+>>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
         else:
             # General business document
             financial_terms = len(indicators.get('financial_terms', []))
