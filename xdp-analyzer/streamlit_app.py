@@ -21,6 +21,7 @@ sys.path.append(str(Path(__file__).parent))
 
 from parsers.excel_parser import AdvancedExcelParser
 from analyzers.intelligent_analyzer import FreeIntelligentAnalyzer
+from analyzers.requirements_agent import RequirementsAgent
 
 # Page configuration
 st.set_page_config(
@@ -72,6 +73,38 @@ st.markdown("""
     border-left: 4px solid #ef4444;
     margin: 1rem 0;
 }
+.chat-container {
+    max-height: 400px;
+    overflow-y: auto;
+    border: 1px solid #e0e0e0;
+    border-radius: 0.5rem;
+    padding: 1rem;
+    background-color: #fafafa;
+    margin-bottom: 1rem;
+}
+.user-message {
+    background-color: #e3f2fd;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    margin: 0.5rem 0;
+    text-align: right;
+}
+.agent-message {
+    background-color: #f1f8e9;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    margin: 0.5rem 0;
+    text-align: left;
+}
+.conversation-state {
+    background-color: #fff3e0;
+    padding: 0.5rem;
+    border-radius: 0.5rem;
+    border-left: 4px solid #ff9800;
+    margin: 1rem 0;
+    font-size: 0.9rem;
+    color: #555;
+}
 </style>
 """, unsafe_allow_html=True)
 
@@ -81,6 +114,7 @@ class StreamlitXDPAnalyzer:
     def __init__(self):
         self.excel_parser = AdvancedExcelParser()
         self.intelligent_analyzer = FreeIntelligentAnalyzer()
+        self.requirements_agent = RequirementsAgent(self.intelligent_analyzer)
     
     def run(self):
         """Main Streamlit app"""
@@ -104,21 +138,25 @@ class StreamlitXDPAnalyzer:
             - ✅ Risk Assessment
             - ✅ Automation Opportunities
             - ✅ Intelligent Insights
+            - 🤖 Requirements Agent (NEW!)
             """)
             
             st.header("🛡️ Privacy First")
             st.success("All analysis runs locally on your machine. No data leaves your computer!")
         
         # Main content
-        tab1, tab2, tab3 = st.tabs(["📁 Upload & Analyze", "📊 Dashboard", "ℹ️ About"])
+        tab1, tab2, tab3, tab4 = st.tabs(["📁 Upload & Analyze", "🤖 Requirements Agent", "📊 Dashboard", "ℹ️ About"])
         
         with tab1:
             self.upload_and_analyze_tab()
         
         with tab2:
-            self.dashboard_tab()
+            self.requirements_agent_tab()
         
         with tab3:
+            self.dashboard_tab()
+        
+        with tab4:
             self.about_tab()
     
     def upload_and_analyze_tab(self):
@@ -499,6 +537,374 @@ class StreamlitXDPAnalyzer:
         
         for insight in intelligent_analysis.key_insights[:3]:
             st.info(f"💡 {insight}")
+    
+    def requirements_agent_tab(self):
+        """Requirements Agent conversational interface"""
+        
+        st.header("🤖 Requirements Agent")
+        st.markdown("**Have a conversation with our AI agent to get tailored document analysis based on your specific needs.**")
+        
+        # Initialize session state for requirements agent
+        if 'requirements_agent' not in st.session_state:
+            st.session_state.requirements_agent = RequirementsAgent(self.intelligent_analyzer)
+        
+        if 'conversation_started' not in st.session_state:
+            st.session_state.conversation_started = False
+        
+        if 'conversation_messages' not in st.session_state:
+            st.session_state.conversation_messages = []
+        
+        if 'requirements_analysis_ready' not in st.session_state:
+            st.session_state.requirements_analysis_ready = False
+        
+        # File upload section
+        st.subheader("📁 Upload Your Document")
+        uploaded_file = st.file_uploader(
+            "Choose a file for requirements-based analysis",
+            type=['xlsx', 'xlsm', 'xls'],
+            help="Upload your document and describe your requirements to get tailored analysis"
+        )
+        
+        if uploaded_file is not None:
+            # File info
+            col1, col2 = st.columns(2)
+            with col1:
+                st.metric("📄 Filename", uploaded_file.name)
+            with col2:
+                st.metric("📊 File Size", f"{uploaded_file.size / 1024:.1f} KB")
+            
+            # Store file in session state
+            if 'uploaded_file_data' not in st.session_state:
+                st.session_state.uploaded_file_data = uploaded_file.getbuffer()
+                st.session_state.uploaded_filename = uploaded_file.name
+            
+            # Initial requirements input
+            if not st.session_state.conversation_started:
+                st.subheader("🎯 Tell me about your requirements")
+                
+                user_description = st.text_area(
+                    "Describe what you need from this analysis:",
+                    placeholder="Example: I need to analyze this financial model for budget planning. I want to understand if the formulas are accurate and identify any risks before presenting to management.",
+                    height=100,
+                    help="Be as specific as possible about your goals, audience, and what you hope to achieve"
+                )
+                
+                if st.button("🚀 Start Conversation", type="primary", disabled=not user_description.strip()):
+                    if user_description.strip():
+                        # Start conversation
+                        file_type = uploaded_file.name.split('.')[-1].upper()
+                        response = st.session_state.requirements_agent.start_conversation(
+                            user_description, 
+                            file_type
+                        )
+                        
+                        st.session_state.conversation_started = True
+                        st.session_state.conversation_messages = [
+                            {"sender": "user", "message": user_description, "type": "initial"},
+                            {"sender": "agent", "message": response, "type": "response"}
+                        ]
+                        st.rerun()
+            
+            # Conversation interface
+            if st.session_state.conversation_started:
+                self._display_conversation_interface()
+        
+        else:
+            st.info("👆 Please upload a document to start the requirements conversation.")
+            
+            # Show demo conversation
+            with st.expander("💡 See Example Conversation"):
+                st.markdown("""
+                **Example interaction:**
+                
+                **You:** "I have an Excel financial model and need help understanding if it's suitable for budget planning"
+                
+                **Agent:** "Thanks for providing that context about your Excel document. I can see this is related to financial analysis. Let me ask a few targeted questions so I can tailor my analysis to your specific needs. What is the main business problem this document is meant to solve?"
+                
+                **You:** "I need to present this to senior management for quarterly budget approval"
+                
+                **Agent:** "That makes sense. Building on what you said, who is your target audience for this analysis? Are we talking about C-level executives, finance team, or a broader audience?"
+                
+                And so on... The agent will ask 3-5 targeted questions to understand your specific needs.
+                """)
+    
+    def _display_conversation_interface(self):
+        """Display the conversational interface"""
+        
+        # Conversation history
+        st.subheader("💬 Conversation")
+        
+        # Display conversation messages
+        chat_container = st.container()
+        with chat_container:
+            for msg in st.session_state.conversation_messages:
+                if msg["sender"] == "user":
+                    st.markdown(f"""
+                    <div class="user-message">
+                        <strong>You:</strong> {msg["message"]}
+                    </div>
+                    """, unsafe_allow_html=True)
+                else:
+                    st.markdown(f"""
+                    <div class="agent-message">
+                        <strong>🤖 Agent:</strong> {msg["message"]}
+                    </div>
+                    """, unsafe_allow_html=True)
+        
+        # Show conversation state
+        agent_state = st.session_state.requirements_agent.state.value
+        st.markdown(f"""
+        <div class="conversation-state">
+            <strong>Status:</strong> {agent_state.replace('_', ' ').title()}
+        </div>
+        """, unsafe_allow_html=True)
+        
+        # Input for next response (if conversation not completed)
+        if agent_state != "completed":
+            user_response = st.text_input(
+                "Your response:",
+                placeholder="Type your answer here...",
+                key="user_response_input"
+            )
+            
+            col1, col2 = st.columns([1, 4])
+            with col1:
+                if st.button("📤 Send", disabled=not user_response.strip()):
+                    if user_response.strip():
+                        # Process user response
+                        agent_response = st.session_state.requirements_agent.process_user_response(user_response)
+                        
+                        # Add messages to conversation
+                        st.session_state.conversation_messages.extend([
+                            {"sender": "user", "message": user_response, "type": "response"},
+                            {"sender": "agent", "message": agent_response, "type": "response"}
+                        ])
+                        
+                        # Clear input
+                        st.session_state.user_response_input = ""
+                        st.rerun()
+            
+            with col2:
+                if st.button("⏭️ Skip Question"):
+                    # Skip current question
+                    agent_response = st.session_state.requirements_agent.process_user_response("I'd prefer to skip this question")
+                    
+                    st.session_state.conversation_messages.append({
+                        "sender": "agent", 
+                        "message": agent_response, 
+                        "type": "response"
+                    })
+                    st.rerun()
+        
+        # Analysis button (when conversation is complete)
+        if agent_state == "completed":
+            st.success("🎉 Conversation completed! Ready for analysis.")
+            
+            col1, col2 = st.columns(2)
+            with col1:
+                if st.button("📊 Generate Tailored Analysis", type="primary", use_container_width=True):
+                    self._generate_requirements_based_analysis()
+            
+            with col2:
+                if st.button("🔄 Start New Conversation", use_container_width=True):
+                    self._reset_requirements_conversation()
+        
+        # Show gathered requirements summary
+        if agent_state == "completed":
+            st.subheader("📋 Gathered Requirements Summary")
+            context = st.session_state.requirements_agent.context
+            
+            col1, col2 = st.columns(2)
+            
+            with col1:
+                if context.primary_purpose:
+                    st.markdown(f"**🎯 Purpose:** {context.primary_purpose}")
+                if context.target_audience:
+                    st.markdown(f"**👥 Audience:** {context.target_audience}")
+                if context.business_domain:
+                    st.markdown(f"**🏢 Domain:** {context.business_domain.title()}")
+            
+            with col2:
+                if context.priorities:
+                    priorities_text = "; ".join(context.priorities[:2])
+                    st.markdown(f"**⭐ Priorities:** {priorities_text}")
+                if context.timeline:
+                    st.markdown(f"**⏰ Timeline:** {context.timeline}")
+                if context.analysis_scope:
+                    st.markdown(f"**🔍 Scope:** {context.analysis_scope}")
+        
+        # Display requirements-based analysis if ready
+        if st.session_state.requirements_analysis_ready and 'requirements_analysis' in st.session_state:
+            self._display_requirements_analysis()
+    
+    def _generate_requirements_based_analysis(self):
+        """Generate analysis based on gathered requirements"""
+        
+        progress_bar = st.progress(0)
+        status_text = st.empty()
+        
+        try:
+            # Save uploaded file temporarily
+            with tempfile.NamedTemporaryFile(delete=False, suffix=f".{st.session_state.uploaded_filename.split('.')[-1]}") as tmp_file:
+                tmp_file.write(st.session_state.uploaded_file_data)
+                tmp_path = tmp_file.name
+            
+            # Step 1: Parse document
+            status_text.text("🔄 Parsing document...")
+            progress_bar.progress(25)
+            
+            excel_analysis = self.excel_parser.parse(tmp_path)
+            
+            # Step 2: Standard intelligent analysis
+            status_text.text("🧠 Performing standard analysis...")
+            progress_bar.progress(50)
+            
+            intelligent_analysis = self.intelligent_analyzer.analyze_excel_content(excel_analysis)
+            
+            # Step 3: Requirements-based analysis
+            status_text.text("🎯 Generating tailored analysis based on your requirements...")
+            progress_bar.progress(75)
+            
+            requirements_analysis = st.session_state.requirements_agent.generate_requirements_analysis(
+                intelligent_analysis
+            )
+            
+            # Step 4: Complete
+            status_text.text("✅ Requirements-based analysis complete!")
+            progress_bar.progress(100)
+            
+            # Store results
+            st.session_state.excel_analysis = excel_analysis
+            st.session_state.intelligent_analysis = intelligent_analysis
+            st.session_state.requirements_analysis = requirements_analysis
+            st.session_state.requirements_analysis_ready = True
+            
+            # Clean up
+            Path(tmp_path).unlink()
+            
+        except Exception as e:
+            st.error(f"❌ Error during analysis: {str(e)}")
+            status_text.text("❌ Analysis failed")
+    
+    def _display_requirements_analysis(self):
+        """Display the requirements-based analysis results"""
+        
+        st.header("🎯 Your Tailored Analysis")
+        analysis = st.session_state.requirements_analysis
+        
+        # Overview metrics
+        col1, col2, col3 = st.columns(3)
+        with col1:
+            st.metric("📊 Analysis Type", "Requirements-Based")
+        with col2:
+            st.metric("🎯 Confidence", f"{analysis.confidence_score:.1%}")
+        with col3:
+            st.metric("💬 Questions Asked", len(st.session_state.requirements_agent.questions_asked))
+        
+        # Tabbed results
+        req_tab1, req_tab2, req_tab3, req_tab4, req_tab5 = st.tabs([
+            "📋 Summary", 
+            "💡 Tailored Insights", 
+            "🛠️ Recommendations", 
+            "⚠️ Risk Assessment",
+            "🗺️ Implementation Roadmap"
+        ])
+        
+        with req_tab1:
+            st.markdown("### 📋 Requirements Summary")
+            st.markdown(analysis.requirements_summary)
+            
+            st.markdown("### 🎯 Analysis Overview")
+            st.write(analysis.conversation_context.user_description)
+        
+        with req_tab2:
+            st.markdown("### 💡 Tailored Insights")
+            for i, insight in enumerate(analysis.tailored_insights, 1):
+                st.markdown(f"""
+                <div class="insight-box">
+                    <strong>💡 Insight {i}:</strong> {insight}
+                </div>
+                """, unsafe_allow_html=True)
+        
+        with req_tab3:
+            st.markdown("### 🛠️ Specific Recommendations")
+            for i, rec in enumerate(analysis.specific_recommendations, 1):
+                st.markdown(f"""
+                <div class="recommendation-box">
+                    <strong>✅ Recommendation {i}:</strong> {rec}
+                </div>
+                """, unsafe_allow_html=True)
+        
+        with req_tab4:
+            st.markdown("### ⚠️ Risk Assessment")
+            if analysis.risk_assessment:
+                for i, risk in enumerate(analysis.risk_assessment, 1):
+                    st.markdown(f"""
+                    <div class="risk-box">
+                        <strong>⚠️ Risk {i}:</strong> {risk}
+                    </div>
+                    """, unsafe_allow_html=True)
+            else:
+                st.success("🎉 No significant risks identified based on your requirements!")
+        
+        with req_tab5:
+            st.markdown("### 🗺️ Implementation Roadmap")
+            for i, step in enumerate(analysis.implementation_roadmap, 1):
+                st.markdown(f"**{i}.** {step}")
+            
+            if analysis.success_metrics:
+                st.markdown("### 📈 Success Metrics")
+                for metric in analysis.success_metrics:
+                    st.write(f"• {metric}")
+        
+        # Export functionality
+        st.markdown("### 📤 Export Results")
+        
+        if st.button("💾 Download Requirements Analysis Report", type="secondary"):
+            report_data = {
+                'requirements_summary': analysis.requirements_summary,
+                'conversation_context': {
+                    'user_description': analysis.conversation_context.user_description,
+                    'primary_purpose': analysis.conversation_context.primary_purpose,
+                    'target_audience': analysis.conversation_context.target_audience,
+                    'business_domain': analysis.conversation_context.business_domain,
+                    'priorities': analysis.conversation_context.priorities,
+                    'timeline': analysis.conversation_context.timeline,
+                },
+                'tailored_insights': analysis.tailored_insights,
+                'specific_recommendations': analysis.specific_recommendations,
+                'risk_assessment': analysis.risk_assessment,
+                'implementation_roadmap': analysis.implementation_roadmap,
+                'success_metrics': analysis.success_metrics,
+                'confidence_score': analysis.confidence_score,
+                'conversation_history': [
+                    {'sender': msg['sender'], 'message': msg['message']} 
+                    for msg in st.session_state.conversation_messages
+                ]
+            }
+            
+            st.download_button(
+                label="📄 Download JSON Report",
+                data=json.dumps(report_data, indent=2),
+                file_name=f"requirements_analysis_{st.session_state.uploaded_filename.split('.')[0]}.json",
+                mime="application/json"
+            )
+    
+    def _reset_requirements_conversation(self):
+        """Reset the requirements conversation"""
+        
+        # Reset agent state
+        st.session_state.requirements_agent.reset_conversation()
+        
+        # Clear session state
+        st.session_state.conversation_started = False
+        st.session_state.conversation_messages = []
+        st.session_state.requirements_analysis_ready = False
+        
+        if 'requirements_analysis' in st.session_state:
+            del st.session_state.requirements_analysis
+        
+        st.rerun()
     
     def about_tab(self):
         """About and help tab"""
