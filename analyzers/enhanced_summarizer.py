@@ -15,10 +15,14 @@ import time
 from datetime import datetime
 
 # For local fallback summarization
-import nltk
-from nltk.tokenize import sent_tokenize, word_tokenize
-from nltk.corpus import stopwords
-from textstat import flesch_reading_ease, automated_readability_index
+try:
+    import nltk
+    from nltk.tokenize import sent_tokenize, word_tokenize
+    from nltk.corpus import stopwords
+    from textstat import flesch_reading_ease, automated_readability_index
+    NLTK_AVAILABLE = True
+except ImportError:
+    NLTK_AVAILABLE = False
 
 @dataclass
 class EnhancedSummary:
@@ -46,9 +50,12 @@ class EnhancedDocumentSummarizer:
         self.use_llm = use_llm
         
         # Initialize NLTK components for fallback
-        try:
-            self.stop_words = set(stopwords.words('english'))
-        except:
+        if NLTK_AVAILABLE:
+            try:
+                self.stop_words = set(stopwords.words('english'))
+            except:
+                self.stop_words = set()
+        else:
             self.stop_words = set()
             
         # Free LLM options (in order of preference)
@@ -98,7 +105,6 @@ class EnhancedDocumentSummarizer:
                 'purpose': 'sales performance tracking and revenue management',
                 'audience': 'sales teams, sales managers, and revenue executives',
                 'insights_focus': ['sales trends', 'customer behavior', 'territory performance', 'pipeline health']
-<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
             },
             'creative_content': {
                 'keywords': ['screenplay', 'script', 'scene', 'character', 'dialogue', 'act', 'fade in', 'fade out', 'int.', 'ext.', 'voice over', 'montage'],
@@ -129,8 +135,6 @@ class EnhancedDocumentSummarizer:
                 'purpose': 'marketing performance analysis and campaign optimization',
                 'audience': 'marketing teams, digital marketers, and growth analysts',
                 'insights_focus': ['campaign performance', 'audience insights', 'channel effectiveness', 'conversion optimization']
-=======
->>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
             }
         }
     
@@ -247,7 +251,6 @@ class EnhancedDocumentSummarizer:
             r'\b(inventory|production|sales|marketing|operations|hr)\b'
         ]
         
-<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
         # Creative content patterns
         creative_patterns = [
             r'\b(screenplay|script|scene|character|dialogue|act|scene)\b',
@@ -262,13 +265,10 @@ class EnhancedDocumentSummarizer:
             r'\b(project|phase|sprint|iteration|backlog)\b'
         ]
         
-=======
->>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
         for pattern in process_patterns:
             matches = re.findall(pattern, all_text)
             indicators['business_processes'].extend(matches)
         
-<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
         # Add creative content indicators
         for pattern in creative_patterns:
             matches = re.findall(pattern, all_text)
@@ -279,8 +279,6 @@ class EnhancedDocumentSummarizer:
             matches = re.findall(pattern, all_text)
             indicators['business_processes'].extend(matches)
         
-=======
->>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
         # Time periods
         time_patterns = [
             r'\b(daily|weekly|monthly|quarterly|yearly|annual)\b',
@@ -309,7 +307,6 @@ class EnhancedDocumentSummarizer:
         context_scores = {}
         for context_type, patterns in self.business_context_patterns.items():
             score = 0
-<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
             keyword_matches = 0
             
             # Check keywords in content with higher weighting for exact matches
@@ -320,21 +317,11 @@ class EnhancedDocumentSummarizer:
                 if keyword.lower() in filename:
                     score += 5
                     keyword_matches += 1
-=======
-            
-            # Check keywords in content
-            for keyword in patterns['keywords']:
-                if keyword in all_text:
-                    score += 2
-                if keyword in filename:
-                    score += 3
->>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
             
             # Check in business indicators
             indicators = document_context.get('business_indicators', {})
             for indicator_list in indicators.values():
                 for indicator in indicator_list:
-<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
                     if any(keyword.lower() in indicator.lower() for keyword in patterns['keywords']):
                         score += 2
                         keyword_matches += 1
@@ -379,265 +366,19 @@ class EnhancedDocumentSummarizer:
                 
             final_confidence = max(0.1, min(0.95, base_confidence + content_bonus - ambiguity_penalty))
             context_info['confidence'] = final_confidence
-=======
-                    if any(keyword in indicator for keyword in patterns['keywords']):
-                        score += 1
-            
-            context_scores[context_type] = score
-        
-        # Get best matching context
-        if context_scores:
-            best_context = max(context_scores.items(), key=lambda x: x[1])[0]
-            context_info = self.business_context_patterns[best_context].copy()
-            context_info['confidence'] = context_scores[best_context] / 10  # Normalize
->>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
         else:
             best_context = 'general_analysis'
             context_info = {
                 'purpose': 'general data analysis and business intelligence',
                 'audience': 'business stakeholders and decision makers',
                 'insights_focus': ['data patterns', 'business metrics', 'performance indicators'],
-<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
                 'confidence': 0.2  # Low confidence for unclear content
-=======
-                'confidence': 0.3
->>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
             }
         
         context_info['type'] = best_context
         context_info['all_scores'] = context_scores
         
         return context_info
-    
-    async def _generate_llm_summary(self, document_context: Dict[str, Any], business_context: Dict[str, Any]) -> Optional[EnhancedSummary]:
-        """Generate summary using free LLM APIs"""
-        
-        # Prepare context for LLM
-        context_summary = self._prepare_llm_context(document_context, business_context)
-        
-        # Try each LLM option
-        for llm_config in self.llm_options:
-            try:
-                if llm_config['name'] == 'huggingface_inference':
-                    result = await self._query_huggingface(context_summary, llm_config)
-                elif llm_config['name'] == 'ollama_local':
-                    result = await self._query_ollama(context_summary, llm_config)
-                else:
-                    continue
-                
-                if result:
-                    return self._parse_llm_response(result, business_context, 'llm')
-                    
-            except Exception as e:
-                self.logger.warning(f"LLM {llm_config['name']} failed: {e}")
-                continue
-        
-        return None
-    
-    def _prepare_llm_context(self, document_context: Dict[str, Any], business_context: Dict[str, Any]) -> str:
-        """Prepare context for LLM analysis"""
-        
-        context_parts = [
-            f"Document Analysis Context:",
-            f"Filename: {document_context['basic_info']['filename']}",
-            f"Worksheets: {document_context['basic_info']['worksheets']}",
-            f"Total Formulas: {document_context['basic_info']['total_formulas']}",
-            f"Business Context: {business_context['purpose']}",
-            f"Target Audience: {business_context['audience']}"
-        ]
-        
-        # Add worksheet details
-        if document_context.get('worksheets_detail'):
-            context_parts.append("Worksheet Details:")
-            for ws in document_context['worksheets_detail'][:5]:  # Top 5 worksheets
-                context_parts.append(f"- {ws['name']}: {ws['cell_count']} cells, {ws['formula_count']} formulas")
-        
-        # Add business indicators
-        if document_context.get('business_indicators'):
-            indicators = document_context['business_indicators']
-            if indicators.get('financial_terms'):
-                context_parts.append(f"Financial Terms Found: {', '.join(indicators['financial_terms'][:5])}")
-            if indicators.get('business_processes'):
-                context_parts.append(f"Business Processes: {', '.join(indicators['business_processes'][:5])}")
-        
-        # Add formula patterns
-        if document_context.get('formula_patterns', {}).get('top_functions'):
-            top_functions = document_context['formula_patterns']['top_functions'][:5]
-            context_parts.append(f"Main Excel Functions Used: {', '.join(top_functions)}")
-        
-        # Add sample text content
-        if document_context.get('text_content'):
-            sample_text = ' '.join(document_context['text_content'][:20])  # First 20 text items
-            if len(sample_text) > 500:
-                sample_text = sample_text[:500] + "..."
-            context_parts.append(f"Sample Content: {sample_text}")
-        
-        return '\n'.join(context_parts)
-    
-    async def _query_huggingface(self, context: str, config: Dict) -> Optional[str]:
-        """Query Hugging Face Inference API (free tier)"""
-        
-        prompt = f"""
-        Analyze this Excel document and provide a business-focused summary:
-
-        {context}
-
-        Please provide:
-        1. Executive Summary (what this document is for)
-        2. Main Business Purpose
-        3. Key Findings (3-5 points)
-        4. Business Implications
-        5. Who should use this document
-        6. Complexity level in plain English
-        7. Actionable insights
-        8. Potential concerns
-        9. Suggested next steps
-        """
-        
-        try:
-            # Note: Using a free model that doesn't require API key
-            payload = {
-                "inputs": prompt[:1000],  # Limit input size for free tier
-                "parameters": {
-                    "max_new_tokens": 500,
-                    "temperature": 0.7,
-                    "return_full_text": False
-                }
-            }
-            
-            response = requests.post(
-                "https://api-inference.huggingface.co/models/microsoft/DialoGPT-medium",
-                headers=config['headers'],
-                json=payload,
-                timeout=30
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                if isinstance(result, list) and len(result) > 0:
-                    return result[0].get('generated_text', '')
-                elif isinstance(result, dict):
-                    return result.get('generated_text', '')
-            
-        except Exception as e:
-            self.logger.warning(f"Hugging Face API error: {e}")
-        
-        return None
-    
-    async def _query_ollama(self, context: str, config: Dict) -> Optional[str]:
-        """Query local Ollama instance if available"""
-        
-        prompt = f"""
-        You are a business analyst. Analyze this Excel document data and provide a comprehensive, non-technical summary:
-
-        {context}
-
-        Provide a detailed analysis including:
-        - Executive summary
-        - Business purpose
-        - Key findings
-        - Implications
-        - Target audience
-        - Complexity assessment
-        - Actionable insights
-        - Concerns
-        - Next steps
-        """
-        
-        try:
-            payload = {
-                "model": config.get('model', 'llama3.1:8b'),
-                "prompt": prompt,
-                "stream": False,
-                "options": {
-                    "temperature": 0.7,
-                    "top_p": 0.9,
-                    "max_tokens": config.get('max_tokens', 1000)
-                }
-            }
-            
-            response = requests.post(
-                config['url'],
-                json=payload,
-                timeout=60
-            )
-            
-            if response.status_code == 200:
-                result = response.json()
-                return result.get('response', '')
-            
-        except Exception as e:
-            self.logger.debug(f"Ollama not available: {e}")
-        
-        return None
-    
-    def _parse_llm_response(self, llm_response: str, business_context: Dict, method: str) -> EnhancedSummary:
-        """Parse and structure LLM response"""
-        
-        # Basic parsing - in production, this would be more sophisticated
-        sections = {
-            'executive_summary': '',
-            'business_purpose': '',
-            'key_findings': [],
-            'business_implications': [],
-            'target_audience': '',
-            'complexity_assessment': '',
-            'actionable_insights': [],
-            'concerns': [],
-            'next_steps': []
-        }
-        
-        # Simple section extraction
-        lines = llm_response.split('\n')
-        current_section = None
-        
-        for line in lines:
-            line = line.strip()
-            if not line:
-                continue
-                
-            # Detect section headers
-            lower_line = line.lower()
-            if 'executive summary' in lower_line or 'summary' in lower_line:
-                current_section = 'executive_summary'
-            elif 'purpose' in lower_line or 'business purpose' in lower_line:
-                current_section = 'business_purpose'
-            elif 'findings' in lower_line or 'key points' in lower_line:
-                current_section = 'key_findings'
-            elif 'implications' in lower_line:
-                current_section = 'business_implications'
-            elif 'audience' in lower_line or 'users' in lower_line:
-                current_section = 'target_audience'
-            elif 'complexity' in lower_line:
-                current_section = 'complexity_assessment'
-            elif 'insights' in lower_line or 'actionable' in lower_line:
-                current_section = 'actionable_insights'
-            elif 'concerns' in lower_line or 'risks' in lower_line:
-                current_section = 'concerns'
-            elif 'next steps' in lower_line or 'recommendations' in lower_line:
-                current_section = 'next_steps'
-            else:
-                # Add content to current section
-                if current_section and line:
-                    if current_section in ['key_findings', 'business_implications', 'actionable_insights', 'concerns', 'next_steps']:
-                        sections[current_section].append(line)
-                    else:
-                        sections[current_section] += line + ' '
-        
-        return EnhancedSummary(
-            executive_summary=sections['executive_summary'].strip() or self._generate_fallback_executive_summary(business_context),
-            what_this_document_does=sections['business_purpose'].strip() or f"This document supports {business_context['purpose']}",
-            key_business_purpose=business_context['purpose'],
-            main_findings=sections['key_findings'][:5] or ['Analysis findings available in detailed view'],
-            business_implications=sections['business_implications'][:5] or ['Business impact assessment included'],
-            target_audience_insights=sections['target_audience'].strip() or business_context['audience'],
-            document_complexity_plain_english=sections['complexity_assessment'].strip() or 'Moderate complexity business document',
-            actionable_insights=sections['actionable_insights'][:5] or ['Actionable recommendations provided'],
-            potential_concerns=sections['concerns'][:3] or ['Risk assessment included'],
-            next_steps_suggestions=sections['next_steps'][:5] or ['Next steps identified in analysis'],
-            confidence_score=0.8,
-            generation_method=method
-        )
     
     def _generate_enhanced_local_summary(self, document_context: Dict[str, Any], business_context: Dict[str, Any]) -> EnhancedSummary:
         """Generate enhanced summary using local intelligence"""
@@ -719,7 +460,6 @@ class EnhancedDocumentSummarizer:
             else:
                 return f"This data repository workbook ({filename}) contains {ws_count} worksheets with structured business data. It's designed as a foundational dataset for business intelligence analysis, providing organized information for identifying trends, patterns, and performance metrics to support data-driven decision making."
         
-<<<<<<< HEAD:xdp-analyzer/analyzers/enhanced_summarizer.py
         elif context_type == 'creative_content':
             creative_indicators = indicators.get('document_type_clues', [])
             if any(term in creative_indicators for term in ['screenplay', 'script', 'scene', 'character']):
@@ -733,8 +473,6 @@ class EnhancedDocumentSummarizer:
         elif context_type == 'hr_personnel':
             return f"{filename} is a human resources management workbook containing {ws_count} worksheets focused on personnel data and HR analytics. This document supports HR teams in managing employee information, tracking performance metrics, and analyzing workforce patterns for strategic HR decision-making."
         
-=======
->>>>>>> 78ddec005a50c1e0bdf7789d8af6aeb88af3d4d4:analyzers/enhanced_summarizer.py
         else:
             # General business document
             financial_terms = len(indicators.get('financial_terms', []))
@@ -1056,10 +794,6 @@ class EnhancedDocumentSummarizer:
             confidence += 0.1  # Boost for structured data
         
         return min(0.95, confidence)  # Cap at 95%
-    
-    def _generate_fallback_executive_summary(self, business_context: Dict) -> str:
-        """Generate fallback executive summary when LLM fails"""
-        return f"This business document supports {business_context['purpose']} and is designed for {business_context['audience']}. It provides analytical capabilities and structured data analysis for informed decision-making."
 
 # Example usage and testing
 if __name__ == "__main__":
