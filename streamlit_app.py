@@ -292,13 +292,18 @@ class StreamlitXDPAnalyzer:
     def display_summary_tab(self, analysis):
         """Display summary information"""
         
-        st.markdown('<div class="insight-box">', unsafe_allow_html=True)
-        st.markdown("### 📋 Executive Summary")
-        st.write(analysis.summary)
-        st.markdown('</div>', unsafe_allow_html=True)
-        
-        st.markdown("### 🎯 Business Logic")
-        st.write(analysis.business_logic)
+        # Display enhanced summary if available
+        if hasattr(analysis, 'enhanced_summary') and analysis.enhanced_summary:
+            self._display_enhanced_summary(analysis.enhanced_summary)
+        else:
+            # Fallback to basic summary
+            st.markdown('<div class="insight-box">', unsafe_allow_html=True)
+            st.markdown("### 📋 Executive Summary")
+            st.write(analysis.summary)
+            st.markdown('</div>', unsafe_allow_html=True)
+            
+            st.markdown("### 🎯 Business Logic")
+            st.write(analysis.business_logic)
         
         # Content themes
         if analysis.content_themes:
@@ -310,6 +315,95 @@ class StreamlitXDPAnalyzer:
                 theme_html += f'<span style="background-color: #1f77b4; color: white; padding: 0.2rem 0.5rem; border-radius: 1rem; margin: 0.2rem; display: inline-block;">{theme}</span>'
             
             st.markdown(theme_html, unsafe_allow_html=True)
+    
+    def _display_enhanced_summary(self, enhanced_summary):
+        """Display the enhanced business-focused summary"""
+        
+        # Generation method indicator
+        method_indicator = {
+            'llm': '🤖 AI-Generated',
+            'hybrid': '🔄 AI + Local Analysis',
+            'enhanced_local': '🧠 Advanced Local Analysis'
+        }
+        
+        st.success(f"✨ **Enhanced Business Summary** - {method_indicator.get(enhanced_summary.generation_method, '📊 Generated')}")
+        
+        # Executive Summary (prominent display)
+        st.markdown('<div class="insight-box">', unsafe_allow_html=True)
+        st.markdown("### 📋 Executive Summary")
+        st.markdown(enhanced_summary.executive_summary)
+        st.markdown('</div>', unsafe_allow_html=True)
+        
+        # Two-column layout for key information
+        col1, col2 = st.columns(2)
+        
+        with col1:
+            # What this document does
+            st.markdown("### 📄 What This Document Does")
+            st.write(enhanced_summary.what_this_document_does)
+            
+            # Business Purpose
+            st.markdown("### 🎯 Key Business Purpose")
+            st.write(enhanced_summary.key_business_purpose)
+            
+            # Target Audience
+            st.markdown("### 👥 Target Audience")
+            st.write(enhanced_summary.target_audience_insights)
+        
+        with col2:
+            # Document Complexity in Plain English
+            st.markdown("### 📊 Complexity Assessment")
+            st.info(enhanced_summary.document_complexity_plain_english)
+            
+            # Confidence Score
+            confidence_color = "🟢" if enhanced_summary.confidence_score > 0.8 else "🟡" if enhanced_summary.confidence_score > 0.6 else "🔴"
+            st.metric(
+                "🎯 Analysis Confidence",
+                f"{enhanced_summary.confidence_score:.1%}",
+                help=f"Confidence in the analysis quality {confidence_color}"
+            )
+        
+        # Main Findings
+        if enhanced_summary.main_findings:
+            st.markdown("### 🔍 Main Findings")
+            for i, finding in enumerate(enhanced_summary.main_findings, 1):
+                st.markdown(f"**{i}.** {finding}")
+        
+        # Business Implications
+        if enhanced_summary.business_implications:
+            st.markdown("### 💼 Business Implications")
+            for implication in enhanced_summary.business_implications:
+                st.markdown(f"• {implication}")
+        
+        # Actionable Insights (highlight box)
+        if enhanced_summary.actionable_insights:
+            st.markdown("### 💡 Actionable Insights")
+            for i, insight in enumerate(enhanced_summary.actionable_insights, 1):
+                st.markdown(f"""
+                <div class="recommendation-box">
+                    <strong>💡 Insight {i}:</strong> {insight}
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Potential Concerns
+        if enhanced_summary.potential_concerns:
+            st.markdown("### ⚠️ Potential Concerns")
+            for concern in enhanced_summary.potential_concerns:
+                st.markdown(f"""
+                <div class="risk-box">
+                    <strong>⚠️</strong> {concern}
+                </div>
+                """, unsafe_allow_html=True)
+        
+        # Next Steps
+        if enhanced_summary.next_steps_suggestions:
+            st.markdown("### 🗺️ Suggested Next Steps")
+            for i, step in enumerate(enhanced_summary.next_steps_suggestions, 1):
+                st.markdown(f"**{i}.** {step}")
+        
+        # Technical note
+        st.markdown("---")
+        st.caption(f"This summary was generated using {enhanced_summary.generation_method} analysis to provide business-focused, non-technical insights.")
     
     def display_insights_tab(self, analysis):
         """Display key insights"""
