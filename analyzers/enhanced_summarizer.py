@@ -39,6 +39,8 @@ class EnhancedSummary:
     next_steps_suggestions: List[str]
     confidence_score: float
     generation_method: str  # 'llm', 'hybrid', 'local'
+    # New detailed content analysis fields
+    detailed_content_analysis: Dict[str, Any] = None
 
 class EnhancedDocumentSummarizer:
     """
@@ -387,6 +389,10 @@ class EnhancedDocumentSummarizer:
         business_indicators = document_context.get('business_indicators', {})
         formula_patterns = document_context.get('formula_patterns', {})
         
+        # Store current context for access by other methods
+        self._current_worksheets_detail = document_context.get('worksheets_detail', [])
+        self._current_text_content = document_context.get('text_content', [])
+        
         # Generate executive summary
         executive_summary = self._generate_executive_summary(basic_info, business_context, business_indicators)
         
@@ -417,6 +423,9 @@ class EnhancedDocumentSummarizer:
         # Calculate confidence based on available data
         confidence = self._calculate_enhanced_confidence(basic_info, business_context, document_context)
         
+        # Generate detailed content analysis
+        detailed_content = self._generate_detailed_content_analysis(document_context, business_indicators)
+        
         return EnhancedSummary(
             executive_summary=executive_summary,
             what_this_document_does=what_it_does,
@@ -429,61 +438,88 @@ class EnhancedDocumentSummarizer:
             potential_concerns=concerns,
             next_steps_suggestions=next_steps,
             confidence_score=confidence,
-            generation_method='enhanced_local'
+            generation_method='enhanced_local',
+            detailed_content_analysis=detailed_content
         )
     
     def _generate_executive_summary(self, basic_info: Dict, business_context: Dict, indicators: Dict) -> str:
-        """Generate executive summary"""
+        """Generate content-specific executive summary"""
         
         filename = basic_info['filename'].replace('.xlsx', '').replace('.xls', '').replace('_', ' ').title()
         ws_count = basic_info['worksheets']
         formula_count = basic_info['total_formulas']
-        
-        # Build narrative based on business context
         context_type = business_context['type']
         
-        if context_type == 'financial_modeling':
-            if formula_count > 0:
-                return f"This is a sophisticated financial analysis workbook ({filename}) containing {ws_count} worksheets with {formula_count} calculations. It appears to be designed for risk assessment and portfolio management, enabling stakeholders to understand financial exposures and make informed investment decisions. The document shows evidence of quantitative modeling with financial metrics and risk calculations."
+        # Get actual content details for more specific summary
+        worksheets_detail = getattr(self, '_current_worksheets_detail', [])
+        text_content = getattr(self, '_current_text_content', [])
+        
+        # Build content-aware summary
+        content_preview = ""
+        if worksheets_detail:
+            worksheet_names = [ws['name'] for ws in worksheets_detail]
+            content_preview = f" The worksheets ({', '.join(worksheet_names)}) "
+            
+            # Add sample content if available
+            sample_content = []
+            for ws in worksheets_detail[:2]:
+                if ws.get('sample_text'):
+                    sample_content.extend(ws['sample_text'][:2])
+            
+            if sample_content:
+                clean_samples = [text.strip() for text in sample_content if text and len(text.strip()) > 1][:3]
+                if clean_samples:
+                    content_preview += f"contain data such as '{', '.join(clean_samples)}'. "
+        
+        # Extract key business terms for more specificity
+        key_terms = []
+        for category, terms in indicators.items():
+            if terms and category != 'document_type_clues':
+                key_terms.extend(terms[:2])
+        unique_key_terms = list(set(key_terms))[:4]
+        
+        terms_context = ""
+        if unique_key_terms:
+            terms_context = f" Key business terms found include: {', '.join(unique_key_terms)}."
+        
+        # Generate context-specific but content-aware summary
+        if context_type == 'creative_content':
+            creative_indicators = indicators.get('document_type_clues', [])
+            if any(term in creative_indicators for term in ['screenplay', 'script', 'scene', 'character']):
+                return f"{filename} is a creative writing document with {ws_count} worksheets focused on screenplay or script development.{content_preview}This workbook organizes story elements, character information, scene breakdowns, or dialogue structure.{terms_context}"
             else:
-                return f"This is a financial data workbook ({filename}) containing {ws_count} worksheets with structured financial data. It appears to be designed for risk assessment and portfolio management, providing foundational data for financial analysis and decision-making. The document serves as a data repository for financial metrics and risk-related information."
+                return f"{filename} is a creative content planning document with {ws_count} worksheets.{content_preview}This workbook organizes creative project elements and planning details.{terms_context}"
+        
+        elif context_type == 'financial_modeling':
+            if formula_count > 0:
+                return f"This is a sophisticated financial analysis workbook ({filename}) with {ws_count} worksheets and {formula_count} calculations.{content_preview}It's designed for risk assessment and portfolio management with quantitative modeling capabilities.{terms_context}"
+            else:
+                return f"This is a financial data repository ({filename}) with {ws_count} worksheets containing structured financial data.{content_preview}It provides foundational data for financial analysis and decision-making.{terms_context}"
         
         elif context_type == 'budgeting_planning':
             if formula_count > 0:
-                return f"{filename} is a comprehensive budgeting and planning tool with {ws_count} worksheets containing {formula_count} financial calculations. This workbook enables finance teams to track expenses, forecast revenue, and plan resource allocation. It serves as a central financial planning document for budget management and strategic financial decision-making."
+                return f"{filename} is a comprehensive budgeting tool with {ws_count} worksheets and {formula_count} calculations.{content_preview}This workbook enables finance teams to track expenses, forecast revenue, and plan resource allocation.{terms_context}"
             else:
-                return f"{filename} is a budgeting and planning data repository with {ws_count} worksheets containing structured financial data. This workbook serves as a foundation for budget analysis, providing organized data for expense tracking, revenue planning, and resource allocation decisions."
-        
-        elif context_type == 'data_analysis':
-            if formula_count > 0:
-                return f"This analytical workbook ({filename}) contains {ws_count} data worksheets with {formula_count} analytical calculations. It's designed to provide business intelligence insights through data analysis, helping stakeholders identify trends, patterns, and performance metrics. The document supports data-driven decision making across the organization."
-            else:
-                return f"This data repository workbook ({filename}) contains {ws_count} worksheets with structured business data. It's designed as a foundational dataset for business intelligence analysis, providing organized information for identifying trends, patterns, and performance metrics to support data-driven decision making."
-        
-        elif context_type == 'creative_content':
-            creative_indicators = indicators.get('document_type_clues', [])
-            if any(term in creative_indicators for term in ['screenplay', 'script', 'scene', 'character']):
-                return f"{filename} is a creative writing document containing {ws_count} worksheets focused on screenplay or script development. This workbook appears to organize story elements, character information, scene breakdowns, or dialogue structure. It serves as a creative planning and development tool for writers, directors, or production teams working on narrative content."
-            else:
-                return f"{filename} is a creative content planning document with {ws_count} worksheets containing project-related information. This workbook appears to organize creative elements and planning details for content development, supporting creative teams in structuring and managing their creative projects."
+                return f"{filename} is a budgeting data repository with {ws_count} worksheets.{content_preview}It serves as a foundation for budget analysis and financial planning.{terms_context}"
         
         elif context_type == 'project_management':
-            return f"{filename} is a project management workbook featuring {ws_count} worksheets designed for tracking project progress, resources, and deliverables. This document serves as a central planning tool for project managers and teams to monitor timelines, allocate resources, and ensure project milestones are met effectively."
+            return f"{filename} is a project management workbook with {ws_count} worksheets for tracking progress, resources, and deliverables.{content_preview}This document serves project managers and teams in monitoring timelines and allocating resources.{terms_context}"
         
         elif context_type == 'hr_personnel':
-            return f"{filename} is a human resources management workbook containing {ws_count} worksheets focused on personnel data and HR analytics. This document supports HR teams in managing employee information, tracking performance metrics, and analyzing workforce patterns for strategic HR decision-making."
+            return f"{filename} is an HR management workbook with {ws_count} worksheets focused on personnel data and analytics.{content_preview}This document supports HR teams in managing employee information and analyzing workforce patterns.{terms_context}"
         
         else:
-            # General business document
-            financial_terms = len(indicators.get('financial_terms', []))
-            if financial_terms > 3:
-                focus = "financial analysis and business performance"
-            elif indicators.get('business_processes'):
-                focus = "business process analysis and operational insights"
+            # Content-aware general summary
+            doc_clues = indicators.get('document_type_clues', [])
+            if doc_clues:
+                clue_text = f" Document contains indicators of: {', '.join(doc_clues[:3])}."
             else:
-                focus = "data analysis and business intelligence"
+                clue_text = ""
             
-            return f"{filename} is a business analysis workbook featuring {ws_count} worksheets and {formula_count} calculations focused on {focus}. This document provides stakeholders with analytical insights and data-driven recommendations to support business decision-making and strategic planning."
+            if formula_count > 0:
+                return f"{filename} is a business analysis workbook with {ws_count} worksheets and {formula_count} calculations.{content_preview}This document provides data analysis and business intelligence capabilities.{terms_context}{clue_text}"
+            else:
+                return f"{filename} is a data repository with {ws_count} worksheets containing structured business data.{content_preview}This document serves as a foundation for business analysis and reporting.{terms_context}{clue_text}"
     
     def _generate_document_purpose(self, business_context: Dict, formula_patterns: Dict, indicators: Dict) -> str:
         """Generate what this document does"""
@@ -519,21 +555,47 @@ class EnhancedDocumentSummarizer:
             return f"This workbook serves as a data repository for {purpose_base}. It enables users to {capabilities_text} in an organized manner. The document provides a structured foundation for business data organization, serving as input for analysis tools and supporting data-driven decision-making processes."
     
     def _generate_main_findings(self, document_context: Dict, business_context: Dict) -> List[str]:
-        """Generate main findings"""
+        """Generate main findings based on actual document content"""
         
         findings = []
         basic_info = document_context['basic_info']
         formula_patterns = document_context.get('formula_patterns', {})
         business_indicators = document_context.get('business_indicators', {})
         worksheets = document_context.get('worksheets_detail', [])
+        text_content = document_context.get('text_content', [])
         
-        # Finding about document structure
-        if basic_info['worksheets'] > 5:
-            findings.append(f"Complex multi-sheet structure with {basic_info['worksheets']} worksheets suggests comprehensive business modeling")
-        elif basic_info['worksheets'] > 1:
-            findings.append(f"Well-organized {basic_info['worksheets']}-sheet structure enables systematic analysis")
-        else:
-            findings.append("Focused single-sheet analysis for targeted business insights")
+        # Finding about actual content
+        if worksheets:
+            worksheet_names = [ws['name'] for ws in worksheets]
+            findings.append(f"Document contains worksheets: {', '.join(worksheet_names)}")
+            
+            # Analyze actual cell content
+            total_cells = sum(ws.get('cell_count', 0) for ws in worksheets)
+            if total_cells > 0:
+                findings.append(f"Contains {total_cells} data cells across all worksheets")
+                
+                # Show sample content if available
+                for ws in worksheets[:2]:  # First 2 worksheets
+                    sample_text = ws.get('sample_text', [])
+                    if sample_text:
+                        clean_sample = [text for text in sample_text[:3] if text and len(text.strip()) > 1]
+                        if clean_sample:
+                            findings.append(f"'{ws['name']}' sheet contains data like: {', '.join(clean_sample[:3])}")
+        
+        # Finding about key terms found in content
+        all_terms = []
+        for category, terms in business_indicators.items():
+            if terms and category != 'document_type_clues':
+                all_terms.extend(terms[:2])  # Top 2 from each category
+        
+        if all_terms:
+            unique_terms = list(set(all_terms))[:5]
+            findings.append(f"Key business terms identified: {', '.join(unique_terms)}")
+        
+        # Finding about document type clues
+        doc_clues = business_indicators.get('document_type_clues', [])
+        if doc_clues:
+            findings.append(f"Document type indicators: {', '.join(doc_clues[:3])}")
         
         # Finding about computational complexity
         formula_count = basic_info['total_formulas']
@@ -541,26 +603,21 @@ class EnhancedDocumentSummarizer:
             findings.append(f"Highly automated with {formula_count} formulas, indicating sophisticated business logic")
         elif formula_count > 20:
             findings.append(f"Moderate automation with {formula_count} calculations supporting business analysis")
+        elif formula_count > 0:
+            top_functions = formula_patterns.get('top_functions', [])[:3]
+            if top_functions:
+                findings.append(f"Contains {formula_count} calculations using functions like {', '.join(top_functions)}")
+            else:
+                findings.append(f"Contains {formula_count} calculations for data processing")
         else:
-            findings.append("Simple structure with focused calculations for specific business needs")
-        
-        # Finding about business focus
-        financial_terms = business_indicators.get('financial_terms', [])
-        if len(financial_terms) > 5:
-            top_terms = financial_terms[:3]
-            findings.append(f"Strong financial focus with emphasis on {', '.join(top_terms)}")
+            findings.append("Data-only document with no calculations - pure data repository")
         
         # Finding about time dimensions
         time_periods = business_indicators.get('time_periods', [])
         if time_periods:
             findings.append(f"Time-based analysis covering {', '.join(time_periods[:3])}")
         
-        # Finding about functionality
-        top_functions = formula_patterns.get('top_functions', [])[:3]
-        if top_functions:
-            findings.append(f"Core functionality built around {', '.join(top_functions)} operations")
-        
-        return findings[:5]  # Return top 5 findings
+        return findings[:7]  # Return top 7 findings for more detail
     
     def _generate_business_implications(self, business_context: Dict, formula_patterns: Dict, basic_info: Dict) -> List[str]:
         """Generate business implications"""
@@ -657,21 +714,50 @@ class EnhancedDocumentSummarizer:
         return f"This is a {level} business document with {formula_count} calculations that {description}.{complexity_context} The structure is well-organized for its intended business purpose."
     
     def _generate_actionable_insights(self, business_context: Dict, document_context: Dict) -> List[str]:
-        """Generate actionable insights"""
+        """Generate content-specific actionable insights"""
         
         insights = []
         context_type = business_context['type']
         basic_info = document_context['basic_info']
+        worksheets = document_context.get('worksheets_detail', [])
+        business_indicators = document_context.get('business_indicators', {})
+        
+        # Content-specific insights based on actual data
+        if worksheets:
+            worksheet_names = [ws['name'] for ws in worksheets]
+            insights.append(f"Analyze the data in the '{worksheet_names[0]}' sheet to identify key patterns and trends")
+            
+            if len(worksheet_names) > 1:
+                insights.append(f"Compare data across '{worksheet_names[0]}' and '{worksheet_names[1]}' sheets to identify relationships and correlations")
+        
+        # Insights based on key business terms found
+        key_terms = []
+        for category, terms in business_indicators.items():
+            if terms and category != 'document_type_clues':
+                key_terms.extend(terms[:2])
+        
+        if key_terms:
+            unique_terms = list(set(key_terms))[:3]
+            insights.append(f"Focus analysis on the identified key areas: {', '.join(unique_terms)}")
         
         # Domain-specific actionable insights
         focus_areas = business_context.get('insights_focus', [])
-        for focus in focus_areas[:3]:
-            if context_type == 'financial_modeling':
-                insights.append(f"Use this model to regularly assess {focus} and adjust investment strategies")
-            elif context_type == 'budgeting_planning':
-                insights.append(f"Monitor {focus} monthly to ensure budget alignment and identify variances early")
+        if context_type == 'creative_content':
+            insights.append("Use this document to track story development progress and character arcs")
+            insights.append("Consider creating visualizations of story structure and character relationships")
+        elif context_type == 'financial_modeling':
+            if focus_areas:
+                insights.append(f"Use this model to regularly assess {focus_areas[0]} and adjust investment strategies")
+        elif context_type == 'budgeting_planning':
+            if focus_areas:
+                insights.append(f"Monitor {focus_areas[0]} monthly to ensure budget alignment and identify variances early")
+        else:
+            # Generic content-aware insights
+            if basic_info['total_formulas'] == 0:
+                insights.append("Since this is a data-only document, consider adding calculations to derive insights from the raw data")
+                insights.append("Create pivot tables or charts to visualize the patterns in this data repository")
             else:
-                insights.append(f"Focus on {focus} trends to identify opportunities for business improvement")
+                insights.append("Review and validate the existing calculations to ensure accuracy and relevance")
         
         # Structure-based insights
         if basic_info['worksheets'] > 3:
@@ -679,8 +765,10 @@ class EnhancedDocumentSummarizer:
         
         if basic_info['total_formulas'] > 30:
             insights.append("Document the calculation methodology to ensure consistent usage across teams")
+        elif basic_info['total_formulas'] == 0 and basic_info['worksheets'] > 1:
+            insights.append("Consider consolidating related data from multiple sheets for easier analysis")
         
-        return insights[:5]
+        return insights[:6]  # Return up to 6 insights
     
     def _generate_potential_concerns(self, basic_info: Dict, formula_patterns: Dict, business_context: Dict) -> List[str]:
         """Generate potential concerns"""
@@ -794,6 +882,78 @@ class EnhancedDocumentSummarizer:
             confidence += 0.1  # Boost for structured data
         
         return min(0.95, confidence)  # Cap at 95%
+    
+    def _generate_detailed_content_analysis(self, document_context: Dict[str, Any], business_indicators: Dict) -> Dict[str, Any]:
+        """Generate detailed content analysis showing exactly what's in the document"""
+        
+        worksheets_detail = document_context.get('worksheets_detail', [])
+        text_content = document_context.get('text_content', [])
+        basic_info = document_context['basic_info']
+        
+        analysis = {
+            'worksheet_breakdown': [],
+            'content_samples': [],
+            'key_terms_found': {},
+            'data_structure': {},
+            'content_statistics': {}
+        }
+        
+        # Detailed worksheet breakdown
+        for ws in worksheets_detail:
+            ws_analysis = {
+                'name': ws['name'],
+                'cell_count': ws.get('cell_count', 0),
+                'formula_count': ws.get('formula_count', 0),
+                'has_charts': ws.get('has_charts', False),
+                'has_pivot_tables': ws.get('has_pivot_tables', False),
+                'sample_content': []
+            }
+            
+            # Add sample content from this worksheet
+            sample_text = ws.get('sample_text', [])
+            if sample_text:
+                clean_samples = [text.strip() for text in sample_text[:5] if text and len(text.strip()) > 1]
+                ws_analysis['sample_content'] = clean_samples
+                analysis['content_samples'].extend(clean_samples[:3])
+            
+            analysis['worksheet_breakdown'].append(ws_analysis)
+        
+        # Key terms analysis
+        for category, terms in business_indicators.items():
+            if terms:
+                analysis['key_terms_found'][category] = terms[:5]  # Top 5 terms per category
+        
+        # Data structure analysis
+        analysis['data_structure'] = {
+            'total_worksheets': basic_info['worksheets'],
+            'total_formulas': basic_info['total_formulas'],
+            'total_data_cells': sum(ws.get('cell_count', 0) for ws in worksheets_detail),
+            'complexity_score': basic_info.get('complexity_score', 0)
+        }
+        
+        # Content statistics
+        all_text = ' '.join(text_content)
+        analysis['content_statistics'] = {
+            'total_text_length': len(all_text),
+            'unique_text_items': len(set(text_content)),
+            'text_sample_count': len(text_content)
+        }
+        
+        # Extract most common words (excluding common stopwords)
+        if text_content:
+            word_counts = {}
+            for text in text_content:
+                words = text.lower().split()
+                for word in words:
+                    if len(word) > 2 and word not in ['the', 'and', 'for', 'are', 'but', 'not', 'you', 'all', 'can', 'had', 'has', 'her', 'was', 'one', 'our', 'out', 'day', 'get', 'use', 'man', 'new', 'now', 'way', 'may', 'say']:
+                        word_counts[word] = word_counts.get(word, 0) + 1
+            
+            # Get top 10 most common words
+            if word_counts:
+                top_words = sorted(word_counts.items(), key=lambda x: x[1], reverse=True)[:10]
+                analysis['most_common_words'] = [word for word, count in top_words if count > 1]
+        
+        return analysis
 
 # Example usage and testing
 if __name__ == "__main__":

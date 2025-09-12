@@ -401,6 +401,97 @@ class StreamlitXDPAnalyzer:
             for i, step in enumerate(enhanced_summary.next_steps_suggestions, 1):
                 st.markdown(f"**{i}.** {step}")
         
+        # Detailed Content Analysis (NEW)
+        if hasattr(enhanced_summary, 'detailed_content_analysis') and enhanced_summary.detailed_content_analysis:
+            st.markdown("---")
+            st.markdown("## 📖 Detailed Content Analysis")
+            st.markdown("*Showing exactly what's in your document*")
+            
+            content_analysis = enhanced_summary.detailed_content_analysis
+            
+            # Create tabs for different views of the content
+            content_tab1, content_tab2, content_tab3, content_tab4 = st.tabs([
+                "📄 Worksheets", "🔍 Content Samples", "🏷️ Key Terms", "📊 Statistics"
+            ])
+            
+            with content_tab1:
+                st.markdown("### 📄 Worksheet Breakdown")
+                if content_analysis.get('worksheet_breakdown'):
+                    for ws in content_analysis['worksheet_breakdown']:
+                        with st.expander(f"📋 Sheet: **{ws['name']}**", expanded=True):
+                            col1, col2, col3 = st.columns(3)
+                            with col1:
+                                st.metric("Data Cells", ws.get('cell_count', 0))
+                            with col2:
+                                st.metric("Formulas", ws.get('formula_count', 0))
+                            with col3:
+                                features = []
+                                if ws.get('has_charts'):
+                                    features.append("📈 Charts")
+                                if ws.get('has_pivot_tables'):
+                                    features.append("📊 Pivot Tables")
+                                st.write("Features: " + ", ".join(features) if features else "📋 Data Only")
+                            
+                            # Show sample content from this sheet
+                            if ws.get('sample_content'):
+                                st.markdown("**Sample Content:**")
+                                for i, content in enumerate(ws['sample_content'][:5], 1):
+                                    st.markdown(f"`{i}.` {content}")
+            
+            with content_tab2:
+                st.markdown("### 🔍 Document Content Samples")
+                if content_analysis.get('content_samples'):
+                    st.markdown("Here are actual data samples found in your document:")
+                    for i, sample in enumerate(content_analysis['content_samples'][:10], 1):
+                        st.markdown(f"""
+                        <div class="metric-card">
+                            <strong>Sample {i}:</strong> {sample}
+                        </div>
+                        """, unsafe_allow_html=True)
+                else:
+                    st.info("No text content samples found in the document.")
+            
+            with content_tab3:
+                st.markdown("### 🏷️ Key Terms Identified")
+                key_terms = content_analysis.get('key_terms_found', {})
+                if key_terms:
+                    for category, terms in key_terms.items():
+                        if terms:
+                            category_name = category.replace('_', ' ').title()
+                            st.markdown(f"**{category_name}:**")
+                            terms_text = ", ".join(terms)
+                            st.markdown(f"```{terms_text}```")
+                else:
+                    st.info("No specific business terms identified in the document.")
+                
+                # Most common words
+                if content_analysis.get('most_common_words'):
+                    st.markdown("**Most Common Words:**")
+                    words_text = ", ".join(content_analysis['most_common_words'])
+                    st.markdown(f"```{words_text}```")
+            
+            with content_tab4:
+                st.markdown("### 📊 Content Statistics")
+                stats = content_analysis.get('content_statistics', {})
+                data_structure = content_analysis.get('data_structure', {})
+                
+                col1, col2, col3, col4 = st.columns(4)
+                with col1:
+                    st.metric("Total Worksheets", data_structure.get('total_worksheets', 0))
+                with col2:
+                    st.metric("Total Data Cells", data_structure.get('total_data_cells', 0))
+                with col3:
+                    st.metric("Total Formulas", data_structure.get('total_formulas', 0))
+                with col4:
+                    st.metric("Text Items", stats.get('text_sample_count', 0))
+                
+                # Additional statistics
+                if stats:
+                    st.markdown("**Content Details:**")
+                    st.write(f"• Total text length: {stats.get('total_text_length', 0)} characters")
+                    st.write(f"• Unique text items: {stats.get('unique_text_items', 0)}")
+                    st.write(f"• Complexity score: {data_structure.get('complexity_score', 0):.1f}")
+        
         # Technical note
         st.markdown("---")
         st.caption(f"This summary was generated using {enhanced_summary.generation_method} analysis to provide business-focused, non-technical insights.")
