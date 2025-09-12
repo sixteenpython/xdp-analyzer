@@ -410,8 +410,8 @@ class StreamlitXDPAnalyzer:
             content_analysis = enhanced_summary.detailed_content_analysis
             
             # Create tabs for different views of the content
-            content_tab1, content_tab2, content_tab3, content_tab4 = st.tabs([
-                "📄 Worksheets", "🔍 Content Samples", "🏷️ Key Terms", "📊 Statistics"
+            content_tab1, content_tab2, content_tab3, content_tab4, content_tab5, content_tab6 = st.tabs([
+                "📄 Worksheets", "🔍 Content Samples", "🏷️ Key Terms", "📊 Statistics", "🧮 Formulas", "🔄 Processes"
             ])
             
             with content_tab1:
@@ -491,6 +491,98 @@ class StreamlitXDPAnalyzer:
                     st.write(f"• Total text length: {stats.get('total_text_length', 0)} characters")
                     st.write(f"• Unique text items: {stats.get('unique_text_items', 0)}")
                     st.write(f"• Complexity score: {data_structure.get('complexity_score', 0):.1f}")
+            
+            with content_tab5:
+                st.markdown("### 🧮 Formula Documentation (EUDA Style)")
+                if hasattr(enhanced_summary, 'formula_documentation') and enhanced_summary.formula_documentation:
+                    formula_docs = enhanced_summary.formula_documentation
+                    
+                    st.markdown("**📊 Formula Overview:**")
+                    col1, col2, col3 = st.columns(3)
+                    with col1:
+                        st.metric("Total Formulas", formula_docs.get('total_formulas', 0))
+                    with col2:
+                        complexity = formula_docs.get('calculation_complexity', {})
+                        avg_complexity = complexity.get('average_complexity', 0)
+                        st.metric("Avg Complexity", f"{avg_complexity:.1f}")
+                    with col3:
+                        purpose_count = len(formula_docs.get('formula_breakdown_by_purpose', {}))
+                        st.metric("Calculation Types", purpose_count)
+                    
+                    # Individual formula explanations
+                    if formula_docs.get('individual_formulas'):
+                        st.markdown("**🔍 Formula Explanations:**")
+                        for formula in formula_docs['individual_formulas']:
+                            with st.expander(f"📍 {formula['worksheet']}!{formula['cell_address']} - {formula['business_purpose'].get('business_function', 'Calculation')}", expanded=False):
+                                col1, col2 = st.columns([2, 1])
+                                with col1:
+                                    st.markdown("**Formula:**")
+                                    st.code(formula['formula'])
+                                    st.markdown("**Business Purpose:**")
+                                    st.write(formula['explanation'])
+                                    if formula['input_ranges']:
+                                        st.markdown("**Data Sources:**")
+                                        for inp_range in formula['input_ranges'][:3]:
+                                            st.write(f"• {inp_range}")
+                                
+                                with col2:
+                                    st.markdown("**Result:**")
+                                    st.write(f"`{formula['result_value']}`")
+                                    st.markdown("**Type:**")
+                                    st.write(formula['calculation_type'].replace('_', ' ').title())
+                                    
+                                    if formula['math_operations']:
+                                        st.markdown("**Operations:**")
+                                        for op in formula['math_operations']:
+                                            st.write(f"• {op}")
+                else:
+                    st.info("No formulas found in this document - this appears to be a data-only spreadsheet.")
+            
+            with content_tab6:
+                st.markdown("### 🔄 Business Process Documentation")
+                if hasattr(enhanced_summary, 'business_process_flows') and enhanced_summary.business_process_flows:
+                    processes = enhanced_summary.business_process_flows
+                    
+                    for process in processes:
+                        with st.expander(f"🔄 **{process['process_name']}**", expanded=True):
+                            st.markdown(f"**Description:** {process['description']}")
+                            st.markdown(f"**Business Value:** {process['business_value']}")
+                            
+                            if process['inputs']:
+                                st.markdown("**Input Data Sources:**")
+                                for input_source in process['inputs'][:5]:
+                                    st.write(f"• {input_source}")
+                            
+                            st.markdown("**Process Steps:**")
+                            for step in process['steps']:
+                                st.markdown(f"""
+                                <div class="metric-card">
+                                    <strong>Step {step['step_number']}:</strong> Cell {step['cell']}<br/>
+                                    <strong>Purpose:</strong> {step['business_purpose']}<br/>
+                                    <strong>Description:</strong> {step['description']}
+                                </div>
+                                """, unsafe_allow_html=True)
+                else:
+                    st.info("No complex business processes identified in this document.")
+                
+                # Show detailed calculation explanations
+                if hasattr(enhanced_summary, 'calculation_explanations') and enhanced_summary.calculation_explanations:
+                    st.markdown("### 📋 Detailed Calculation Explanations")
+                    
+                    calc_explanations = enhanced_summary.calculation_explanations
+                    for calc in calc_explanations[:10]:  # Show first 10
+                        with st.expander(f"🧮 {calc['worksheet']}!{calc['cell']}", expanded=False):
+                            col1, col2 = st.columns([3, 1])
+                            with col1:
+                                st.markdown("**Business Explanation:**")
+                                st.write(calc['business_explanation'])
+                                st.markdown("**Formula:**")
+                                st.code(calc['formula'])
+                            with col2:
+                                st.markdown("**Impact:**")
+                                st.write(calc['impact'])
+                                st.markdown("**Result:**")
+                                st.write(f"`{calc['result']}`")
         
         # Technical note
         st.markdown("---")

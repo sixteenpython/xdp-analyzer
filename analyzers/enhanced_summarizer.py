@@ -41,6 +41,10 @@ class EnhancedSummary:
     generation_method: str  # 'llm', 'hybrid', 'local'
     # New detailed content analysis fields
     detailed_content_analysis: Dict[str, Any] = None
+    # EUDA-style documentation fields
+    formula_documentation: Dict[str, Any] = None
+    business_process_flows: List[Dict] = None
+    calculation_explanations: List[Dict] = None
 
 class EnhancedDocumentSummarizer:
     """
@@ -426,6 +430,11 @@ class EnhancedDocumentSummarizer:
         # Generate detailed content analysis
         detailed_content = self._generate_detailed_content_analysis(document_context, business_indicators)
         
+        # Generate EUDA-style formula documentation
+        formula_docs = self._generate_formula_documentation(document_context)
+        business_processes = self._generate_business_process_documentation(document_context)
+        calc_explanations = self._generate_calculation_explanations(document_context)
+        
         return EnhancedSummary(
             executive_summary=executive_summary,
             what_this_document_does=what_it_does,
@@ -439,7 +448,10 @@ class EnhancedDocumentSummarizer:
             next_steps_suggestions=next_steps,
             confidence_score=confidence,
             generation_method='enhanced_local',
-            detailed_content_analysis=detailed_content
+            detailed_content_analysis=detailed_content,
+            formula_documentation=formula_docs,
+            business_process_flows=business_processes,
+            calculation_explanations=calc_explanations
         )
     
     def _generate_executive_summary(self, basic_info: Dict, business_context: Dict, indicators: Dict) -> str:
@@ -954,6 +966,272 @@ class EnhancedDocumentSummarizer:
                 analysis['most_common_words'] = [word for word, count in top_words if count > 1]
         
         return analysis
+    
+    def _generate_formula_documentation(self, document_context: Dict[str, Any]) -> Dict[str, Any]:
+        """Generate EUDA-style formula documentation explaining each calculation"""
+        
+        formula_docs = {
+            'total_formulas': 0,
+            'formula_breakdown_by_purpose': {},
+            'individual_formulas': [],
+            'calculation_complexity': {},
+            'data_dependencies': {}
+        }
+        
+        worksheets = document_context.get('worksheets_detail', [])
+        all_formulas = []
+        
+        # Collect all formulas with their context
+        for ws in worksheets:
+            for formula in ws.get('formulas', []):
+                formula_info = {
+                    'worksheet': ws['name'],
+                    'cell_address': formula.get('address', formula.get('cell', 'Unknown')),
+                    'formula': formula.get('formula', ''),
+                    'result_value': formula.get('result_value', formula.get('value', 'N/A')),
+                    'business_purpose': formula.get('business_purpose', {}),
+                    'calculation_type': formula.get('calculation_type', 'unknown'),
+                    'input_ranges': formula.get('input_ranges', []),
+                    'logical_conditions': formula.get('logical_conditions', []),
+                    'math_operations': formula.get('math_operations', []),
+                    'data_lookups': formula.get('data_lookups', {}),
+                    'explanation': self._create_formula_explanation(formula)
+                }
+                all_formulas.append(formula_info)
+        
+        formula_docs['total_formulas'] = len(all_formulas)
+        formula_docs['individual_formulas'] = all_formulas
+        
+        # Group formulas by business purpose
+        purpose_groups = {}
+        for formula in all_formulas:
+            purpose = formula['business_purpose'].get('primary_purpose', 'unknown')
+            if purpose not in purpose_groups:
+                purpose_groups[purpose] = []
+            purpose_groups[purpose].append(formula)
+        
+        formula_docs['formula_breakdown_by_purpose'] = purpose_groups
+        
+        # Calculate complexity metrics
+        complexity_scores = [f.get('complexity', {}).get('score', 0) for f in all_formulas]
+        if complexity_scores:
+            formula_docs['calculation_complexity'] = {
+                'average_complexity': sum(complexity_scores) / len(complexity_scores),
+                'max_complexity': max(complexity_scores),
+                'complexity_distribution': {
+                    'simple': len([s for s in complexity_scores if s < 5]),
+                    'moderate': len([s for s in complexity_scores if 5 <= s < 15]),
+                    'complex': len([s for s in complexity_scores if s >= 15])
+                }
+            }
+        
+        return formula_docs
+    
+    def _create_formula_explanation(self, formula: Dict) -> str:
+        """Create a plain English explanation of what a formula does"""
+        
+        business_purpose = formula.get('business_purpose', {})
+        calc_type = formula.get('calculation_type', 'unknown')
+        formula_text = formula.get('formula', '')
+        input_ranges = formula.get('input_ranges', [])
+        
+        # Base explanation from business purpose
+        base_explanation = business_purpose.get('explanation', 'Performs a calculation')
+        
+        # Add specific details about inputs and operations
+        explanation_parts = [base_explanation]
+        
+        if input_ranges:
+            ranges_text = ', '.join(input_ranges[:3])  # First 3 ranges
+            explanation_parts.append(f"Uses data from ranges: {ranges_text}")
+        
+        # Add operation-specific details
+        math_ops = formula.get('math_operations', [])
+        if math_ops:
+            ops_text = ', '.join(math_ops)
+            explanation_parts.append(f"Performs: {ops_text}")
+        
+        logical_conditions = formula.get('logical_conditions', [])
+        if logical_conditions:
+            explanation_parts.append(f"Applies business logic with {len(logical_conditions)} condition(s)")
+        
+        data_lookups = formula.get('data_lookups', {})
+        if data_lookups.get('lookup_functions'):
+            lookup_funcs = ', '.join(data_lookups['lookup_functions'])
+            explanation_parts.append(f"Retrieves data using: {lookup_funcs}")
+        
+        return '. '.join(explanation_parts) + '.'
+    
+    def _generate_business_process_documentation(self, document_context: Dict[str, Any]) -> List[Dict]:
+        """Generate business process flow documentation from calculation patterns"""
+        
+        processes = []
+        worksheets = document_context.get('worksheets_detail', [])
+        
+        # Analyze each worksheet as a potential business process
+        for ws in worksheets:
+            if ws.get('formulas') and len(ws['formulas']) > 1:
+                process = {
+                    'process_name': f"{ws['name']} Calculation Process",
+                    'worksheet': ws['name'],
+                    'description': self._infer_process_description(ws),
+                    'steps': [],
+                    'inputs': set(),
+                    'outputs': [],
+                    'business_value': self._identify_business_value(ws)
+                }
+                
+                # Sort formulas by cell address to show logical flow
+                formulas = sorted(ws['formulas'], key=lambda x: x.get('address', x.get('cell', 'A1')))
+                
+                for i, formula in enumerate(formulas, 1):
+                    step = {
+                        'step_number': i,
+                        'cell': formula.get('address', formula.get('cell', 'Unknown')),
+                        'description': self._create_formula_explanation(formula),
+                        'business_purpose': formula.get('business_purpose', {}).get('business_function', 'Data Processing'),
+                        'inputs': formula.get('input_ranges', []),
+                        'calculation_type': formula.get('calculation_type', 'unknown')
+                    }
+                    
+                    # Track inputs and outputs
+                    for inp in step['inputs']:
+                        process['inputs'].add(inp)
+                    
+                    process['steps'].append(step)
+                    process['outputs'].append(step['cell'])
+                
+                process['inputs'] = list(process['inputs'])
+                processes.append(process)
+        
+        return processes
+    
+    def _infer_process_description(self, worksheet_info: Dict) -> str:
+        """Infer what business process a worksheet represents"""
+        
+        ws_name = worksheet_info['name'].lower()
+        formulas = worksheet_info.get('formulas', [])
+        
+        # Analyze worksheet name for clues
+        if any(keyword in ws_name for keyword in ['summary', 'dashboard', 'report']):
+            return f"This appears to be a reporting/summary process that consolidates data from multiple sources to create executive-level insights."
+        
+        elif any(keyword in ws_name for keyword in ['calc', 'calculation', 'model']):
+            return f"This appears to be a calculation engine that processes input data through mathematical and logical operations to derive business metrics."
+        
+        elif any(keyword in ws_name for keyword in ['data', 'input', 'source']):
+            return f"This appears to be a data processing workflow that cleanses, transforms, and prepares raw data for downstream analysis."
+        
+        else:
+            # Analyze formula types for clues
+            purposes = [f.get('business_purpose', {}).get('primary_purpose', 'unknown') for f in formulas]
+            if 'financial_calculation' in purposes:
+                return f"This appears to be a financial analysis process that computes financial metrics and ratios for business decision-making."
+            elif 'data_aggregation' in purposes:
+                return f"This appears to be a data aggregation process that summarizes information from various sources into consolidated reports."
+            elif 'data_lookup' in purposes:
+                return f"This appears to be a data integration process that combines information from multiple reference sources."
+            else:
+                return f"This appears to be a business calculation process with {len(formulas)} computational steps for data analysis."
+    
+    def _identify_business_value(self, worksheet_info: Dict) -> str:
+        """Identify the business value delivered by this process"""
+        
+        formulas = worksheet_info.get('formulas', [])
+        purposes = [f.get('business_purpose', {}).get('primary_purpose', 'unknown') for f in formulas]
+        
+        value_descriptions = {
+            'financial_calculation': 'Enables data-driven financial decision making and investment analysis',
+            'data_aggregation': 'Provides consolidated reporting and KPI monitoring capabilities',
+            'data_lookup': 'Ensures data consistency and enables cross-referencing across business systems',
+            'conditional_logic': 'Automates business rule application and decision-making processes',
+            'text_processing': 'Standardizes data formats and improves data quality for analysis',
+            'date_calculation': 'Enables time-based analysis and project management capabilities'
+        }
+        
+        if purposes:
+            primary_purpose = max(set(purposes), key=purposes.count)
+            return value_descriptions.get(primary_purpose, 'Supports business operations through automated calculations')
+        
+        return 'Processes business data to support operational decision-making'
+    
+    def _generate_calculation_explanations(self, document_context: Dict[str, Any]) -> List[Dict]:
+        """Generate detailed explanations for each calculation showing business logic"""
+        
+        explanations = []
+        worksheets = document_context.get('worksheets_detail', [])
+        
+        for ws in worksheets:
+            for formula in ws.get('formulas', []):
+                explanation = {
+                    'worksheet': ws['name'],
+                    'cell': formula.get('address', formula.get('cell', 'Unknown')),
+                    'formula': formula.get('formula', ''),
+                    'result': formula.get('result_value', formula.get('value', 'N/A')),
+                    'business_explanation': self._create_detailed_business_explanation(formula),
+                    'technical_details': self._extract_technical_details(formula),
+                    'dependencies': formula.get('input_ranges', []),
+                    'impact': self._assess_calculation_impact(formula)
+                }
+                explanations.append(explanation)
+        
+        return explanations
+    
+    def _create_detailed_business_explanation(self, formula: Dict) -> str:
+        """Create a detailed business explanation for a specific calculation"""
+        
+        purpose = formula.get('business_purpose', {})
+        formula_text = formula.get('formula', '').upper()
+        
+        # Start with the general purpose
+        explanation = purpose.get('explanation', 'This calculation processes business data')
+        
+        # Add specific function explanations
+        if 'SUM' in formula_text:
+            explanation += " by adding up values"
+        elif 'AVERAGE' in formula_text:
+            explanation += " by calculating the average"
+        elif 'IF' in formula_text:
+            explanation += " by applying conditional business logic"
+        elif any(func in formula_text for func in ['VLOOKUP', 'INDEX', 'MATCH']):
+            explanation += " by looking up related information from reference data"
+        elif any(func in formula_text for func in ['NPV', 'IRR', 'PMT']):
+            explanation += " by performing financial calculations"
+        
+        # Add context about likely use case
+        use_case = purpose.get('likely_use_case', '')
+        if use_case:
+            explanation += f". This is typically used for {use_case}"
+        
+        return explanation + "."
+    
+    def _extract_technical_details(self, formula: Dict) -> Dict[str, Any]:
+        """Extract technical details about the formula structure"""
+        
+        return {
+            'calculation_type': formula.get('calculation_type', 'unknown'),
+            'dependency_level': len(formula.get('input_ranges', [])),
+            'math_operations': formula.get('math_operations', []),
+            'logical_conditions': len(formula.get('logical_conditions', [])),
+            'lookup_operations': formula.get('data_lookups', {}).get('lookup_functions', []),
+            'complexity_score': formula.get('complexity', {}).get('score', 0)
+        }
+    
+    def _assess_calculation_impact(self, formula: Dict) -> str:
+        """Assess the business impact of this calculation"""
+        
+        purpose = formula.get('business_purpose', {}).get('primary_purpose', 'unknown')
+        
+        impact_descriptions = {
+            'financial_calculation': 'High impact - affects financial reporting and investment decisions',
+            'data_aggregation': 'Medium impact - affects reporting accuracy and KPI visibility',
+            'data_lookup': 'Medium impact - affects data consistency and operational efficiency',
+            'conditional_logic': 'High impact - affects automated decision-making processes',
+            'text_processing': 'Low impact - affects data presentation and formatting',
+            'date_calculation': 'Medium impact - affects time-based analysis and scheduling'
+        }
+        
+        return impact_descriptions.get(purpose, 'Impact varies based on business context and usage')
 
 # Example usage and testing
 if __name__ == "__main__":

@@ -250,14 +250,22 @@ class AdvancedExcelParser:
                         )
                         cells.append(cell_info)
                         
-                        # Extract formula information
+                        # Extract comprehensive formula information for EUDA documentation
                         if cell.formula:
                             formula_info = {
                                 'cell': cell.coordinate,
                                 'formula': cell.formula,
+                                'result_value': cell.value,
                                 'functions': self._extract_formula_functions(cell.formula),
                                 'complexity': self._calculate_formula_complexity(cell.formula),
-                                'references': self._extract_formula_references(cell.formula)
+                                'references': self._extract_formula_references(cell.formula),
+                                'business_purpose': self._infer_formula_purpose(cell.formula, cell.coordinate),
+                                'calculation_type': self._classify_calculation_type(cell.formula),
+                                'dependency_level': self._calculate_dependency_level(cell.formula),
+                                'input_ranges': self._extract_input_ranges(cell.formula),
+                                'logical_conditions': self._extract_logical_conditions(cell.formula),
+                                'math_operations': self._extract_math_operations(cell.formula),
+                                'data_lookups': self._extract_lookup_patterns(cell.formula)
                             }
                             formulas.append(formula_info)
                 
@@ -582,6 +590,271 @@ class AdvancedExcelParser:
             metrics['complexity_level'] = 'Low'
         
         return metrics
+    
+    def _infer_formula_purpose(self, formula: str, cell_address: str) -> Dict[str, Any]:
+        """Infer the business purpose of a formula"""
+        formula_lower = formula.upper()
+        purpose_info = {
+            'primary_purpose': 'unknown',
+            'business_function': '',
+            'explanation': '',
+            'likely_use_case': ''
+        }
+        
+        # Financial calculations
+        if any(func in formula_lower for func in ['NPV', 'IRR', 'PMT', 'PV', 'FV']):
+            purpose_info.update({
+                'primary_purpose': 'financial_calculation',
+                'business_function': 'Financial Analysis',
+                'explanation': 'Performs financial calculations like net present value, internal rate of return, or payment calculations',
+                'likely_use_case': 'Investment analysis, loan calculations, or financial modeling'
+            })
+        
+        # Data aggregation
+        elif any(func in formula_lower for func in ['SUM', 'SUMIF', 'SUMIFS', 'AVERAGE', 'COUNT']):
+            purpose_info.update({
+                'primary_purpose': 'data_aggregation',
+                'business_function': 'Data Summarization',
+                'explanation': 'Aggregates or summarizes data from multiple sources or ranges',
+                'likely_use_case': 'Reporting, KPI calculation, or data consolidation'
+            })
+        
+        # Lookup and reference
+        elif any(func in formula_lower for func in ['VLOOKUP', 'HLOOKUP', 'INDEX', 'MATCH', 'XLOOKUP']):
+            purpose_info.update({
+                'primary_purpose': 'data_lookup',
+                'business_function': 'Data Retrieval',
+                'explanation': 'Looks up and retrieves data from other tables or ranges',
+                'likely_use_case': 'Master data lookup, price lists, or reference tables'
+            })
+        
+        # Conditional logic
+        elif 'IF' in formula_lower:
+            purpose_info.update({
+                'primary_purpose': 'conditional_logic',
+                'business_function': 'Decision Logic',
+                'explanation': 'Applies business rules or conditional logic to determine outcomes',
+                'likely_use_case': 'Business rule application, status determination, or categorization'
+            })
+        
+        # Text manipulation
+        elif any(func in formula_lower for func in ['CONCATENATE', 'LEFT', 'RIGHT', 'MID', 'SUBSTITUTE']):
+            purpose_info.update({
+                'primary_purpose': 'text_processing',
+                'business_function': 'Text Manipulation',
+                'explanation': 'Processes, formats, or manipulates text data',
+                'likely_use_case': 'Data cleaning, report formatting, or ID generation'
+            })
+        
+        # Date/time calculations
+        elif any(func in formula_lower for func in ['DATE', 'DATEDIF', 'NETWORKDAYS', 'WORKDAY']):
+            purpose_info.update({
+                'primary_purpose': 'date_calculation',
+                'business_function': 'Date/Time Analysis',
+                'explanation': 'Performs date or time-based calculations',
+                'likely_use_case': 'Project scheduling, aging analysis, or time tracking'
+            })
+        
+        return purpose_info
+    
+    def _classify_calculation_type(self, formula: str) -> str:
+        """Classify the type of calculation being performed"""
+        formula_upper = formula.upper()
+        
+        if any(op in formula for op in ['+', '-', '*', '/', '^']):
+            if any(func in formula_upper for func in ['SUM', 'AVERAGE']):
+                return 'aggregation_with_math'
+            return 'arithmetic_calculation'
+        elif any(func in formula_upper for func in ['IF', 'AND', 'OR', 'NOT']):
+            return 'logical_evaluation'
+        elif any(func in formula_upper for func in ['VLOOKUP', 'INDEX', 'MATCH']):
+            return 'data_retrieval'
+        elif any(func in formula_upper for func in ['COUNT', 'SUM', 'AVERAGE', 'MAX', 'MIN']):
+            return 'statistical_analysis'
+        else:
+            return 'other'
+    
+    def _calculate_dependency_level(self, formula: str) -> int:
+        """Calculate how many levels deep the dependencies go"""
+        # Count cell references (simple approximation)
+        import re
+        cell_refs = re.findall(r'[A-Z]+[0-9]+', formula)
+        range_refs = re.findall(r'[A-Z]+[0-9]+:[A-Z]+[0-9]+', formula)
+        return len(set(cell_refs)) + len(range_refs)
+    
+    def _extract_input_ranges(self, formula: str) -> List[str]:
+        """Extract input ranges used in the formula"""
+        import re
+        ranges = []
+        
+        # Range references like A1:B10
+        range_pattern = r'[A-Z]+[0-9]+:[A-Z]+[0-9]+'
+        ranges.extend(re.findall(range_pattern, formula))
+        
+        # Single cell references
+        cell_pattern = r'[A-Z]+[0-9]+'
+        ranges.extend(re.findall(cell_pattern, formula))
+        
+        return list(set(ranges))
+    
+    def _extract_logical_conditions(self, formula: str) -> List[str]:
+        """Extract logical conditions from the formula"""
+        conditions = []
+        formula_upper = formula.upper()
+        
+        # Look for comparison operators
+        import re
+        comparisons = re.findall(r'[A-Z0-9]+\s*[><=!]+\s*[A-Z0-9"\']+', formula)
+        conditions.extend(comparisons)
+        
+        # Look for IF statements
+        if 'IF(' in formula_upper:
+            conditions.append('Contains conditional logic')
+        
+        # Look for logical functions
+        for func in ['AND', 'OR', 'NOT']:
+            if f'{func}(' in formula_upper:
+                conditions.append(f'Uses {func} logic')
+        
+        return conditions
+    
+    def _extract_math_operations(self, formula: str) -> List[str]:
+        """Extract mathematical operations from the formula"""
+        operations = []
+        
+        if '+' in formula:
+            operations.append('Addition')
+        if '-' in formula:
+            operations.append('Subtraction')
+        if '*' in formula:
+            operations.append('Multiplication')
+        if '/' in formula:
+            operations.append('Division')
+        if '^' in formula:
+            operations.append('Exponentiation')
+        
+        return operations
+    
+    def _extract_lookup_patterns(self, formula: str) -> Dict[str, Any]:
+        """Extract data lookup patterns and their purposes"""
+        formula_upper = formula.upper()
+        lookups = {
+            'lookup_functions': [],
+            'lookup_purpose': '',
+            'data_sources': []
+        }
+        
+        if 'VLOOKUP' in formula_upper:
+            lookups['lookup_functions'].append('VLOOKUP')
+            lookups['lookup_purpose'] = 'Vertical table lookup'
+        if 'HLOOKUP' in formula_upper:
+            lookups['lookup_functions'].append('HLOOKUP')
+            lookups['lookup_purpose'] = 'Horizontal table lookup'
+        if 'INDEX' in formula_upper and 'MATCH' in formula_upper:
+            lookups['lookup_functions'].append('INDEX-MATCH')
+            lookups['lookup_purpose'] = 'Advanced flexible lookup'
+        if 'XLOOKUP' in formula_upper:
+            lookups['lookup_functions'].append('XLOOKUP')
+            lookups['lookup_purpose'] = 'Modern bidirectional lookup'
+        
+        # Extract potential data source ranges
+        import re
+        ranges = re.findall(r'[A-Z]+[0-9]+:[A-Z]+[0-9]+', formula)
+        lookups['data_sources'] = ranges
+        
+        return lookups
+    
+    def analyze_formula_relationships(self, worksheets: List[WorksheetInfo]) -> Dict[str, Any]:
+        """Analyze relationships between formulas and create dependency maps"""
+        relationships = {
+            'formula_dependency_tree': {},
+            'data_flow_map': {},
+            'calculation_chains': [],
+            'business_process_steps': []
+        }
+        
+        all_formulas = []
+        for ws in worksheets:
+            for formula in ws.formulas:
+                formula['worksheet'] = ws.name
+                all_formulas.append(formula)
+        
+        # Build dependency tree
+        for formula in all_formulas:
+            cell_addr = f"{formula['worksheet']}!{formula['cell']}"
+            dependencies = formula.get('input_ranges', [])
+            relationships['formula_dependency_tree'][cell_addr] = {
+                'depends_on': dependencies,
+                'purpose': formula.get('business_purpose', {}),
+                'calculation_type': formula.get('calculation_type', 'unknown')
+            }
+        
+        # Identify calculation chains
+        calculation_chains = self._identify_calculation_chains(all_formulas)
+        relationships['calculation_chains'] = calculation_chains
+        
+        return relationships
+    
+    def _identify_calculation_chains(self, formulas: List[Dict]) -> List[Dict]:
+        """Identify sequential calculation chains for business process documentation"""
+        chains = []
+        
+        # Group by calculation type and purpose
+        chains_by_purpose = {}
+        for formula in formulas:
+            purpose = formula.get('business_purpose', {}).get('primary_purpose', 'unknown')
+            if purpose not in chains_by_purpose:
+                chains_by_purpose[purpose] = []
+            chains_by_purpose[purpose].append(formula)
+        
+        # Create chain documentation
+        for purpose, formula_group in chains_by_purpose.items():
+            if len(formula_group) > 1:
+                chain_info = {
+                    'business_purpose': purpose,
+                    'steps': [],
+                    'description': self._generate_process_description(purpose, formula_group)
+                }
+                
+                for i, formula in enumerate(formula_group, 1):
+                    step = {
+                        'step_number': i,
+                        'cell': formula['cell'],
+                        'worksheet': formula.get('worksheet', 'Unknown'),
+                        'explanation': self._explain_formula_step(formula),
+                        'business_meaning': formula.get('business_purpose', {}).get('explanation', 'Unknown purpose')
+                    }
+                    chain_info['steps'].append(step)
+                
+                chains.append(chain_info)
+        
+        return chains
+    
+    def _generate_process_description(self, purpose: str, formulas: List[Dict]) -> str:
+        """Generate a business process description for a group of related calculations"""
+        descriptions = {
+            'financial_calculation': f'This financial calculation process involves {len(formulas)} steps to compute financial metrics, ratios, or investment analysis.',
+            'data_aggregation': f'This data aggregation process summarizes information across {len(formulas)} calculation steps to create consolidated reports or KPIs.',
+            'data_lookup': f'This data lookup process retrieves and cross-references information through {len(formulas)} lookup operations.',
+            'conditional_logic': f'This decision logic process applies business rules through {len(formulas)} conditional statements.',
+            'text_processing': f'This data processing workflow formats and manipulates text data through {len(formulas)} transformation steps.'
+        }
+        return descriptions.get(purpose, f'This calculation process performs {purpose} operations through {len(formulas)} steps.')
+    
+    def _explain_formula_step(self, formula: Dict) -> str:
+        """Explain what a specific formula step does in business terms"""
+        purpose = formula.get('business_purpose', {})
+        calc_type = formula.get('calculation_type', 'unknown')
+        
+        explanations = {
+            'arithmetic_calculation': f"Performs mathematical calculation to compute {purpose.get('business_function', 'a numeric result')}",
+            'logical_evaluation': f"Evaluates business conditions to determine {purpose.get('likely_use_case', 'the appropriate action')}",
+            'data_retrieval': f"Looks up data from reference tables for {purpose.get('likely_use_case', 'information retrieval')}",
+            'statistical_analysis': f"Analyzes data patterns to calculate {purpose.get('business_function', 'statistical metrics')}",
+            'aggregation_with_math': f"Combines and calculates data for {purpose.get('likely_use_case', 'summarized reporting')}"
+        }
+        
+        return explanations.get(calc_type, f"Processes data for {purpose.get('business_function', 'business purposes')}")
     
     def export_analysis(self, analysis: ExcelAnalysis, output_path: str) -> None:
         """Export analysis results to JSON"""
