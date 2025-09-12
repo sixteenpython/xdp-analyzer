@@ -23,6 +23,7 @@
 - **Risk Assessment**: Flag potential issues and vulnerabilities
 - **Automation Opportunities**: Identify areas for improvement
 - **Content Analysis**: Extract themes, sentiment, and keywords
+- **🤖 Requirements Agent (NEW!)**: Conversational AI that gathers requirements and provides tailored analysis
 
 ### Local Intelligence (No External APIs)
 - **Rule-Based Analysis**: Pattern recognition using local algorithms
@@ -42,7 +43,8 @@ xdp-analyzer/
 ├── llm_integration/           # AI/LLM integrations
 │   └── multi_llm_analyzer.py  # Multi-provider LLM system
 ├── analyzers/                 # Analysis engines
-│   ├── excel_formula_analyzer.py      # Formula & VBA analysis
+│   ├── intelligent_analyzer.py        # Free intelligent analysis
+│   ├── requirements_agent.py         # Conversational requirements agent
 │   └── business_process_mapper.py     # Process mapping
 ├── tests/                     # Test suite
 │   └── test_suite.py         # Comprehensive tests
@@ -106,6 +108,45 @@ python main.py path/to/your/file.xlsx
 # With detailed output
 python main.py path/to/your/file.xlsx --output analysis_report.json
 ```
+
+## 🤖 Requirements Agent - NEW FEATURE!
+
+The **Requirements Agent** is a conversational AI that engages with you to understand your specific needs before analyzing your documents. This ensures you get tailored, relevant insights.
+
+### How it works:
+1. **Upload** your document
+2. **Describe** your requirements in natural language
+3. **Conversation** - The agent asks 3-5 targeted questions about:
+   - Your business goals and objectives  
+   - Target audience (executives, analysts, etc.)
+   - Analysis scope and priorities
+   - Timeline and constraints
+   - Success criteria
+4. **Tailored Analysis** - Get customized insights, recommendations, and roadmaps
+
+### Example Conversation:
+```
+You: "I have an Excel financial model and need help understanding if it's suitable for budget planning"
+
+Agent: "Thanks for that context. I can see this is related to financial analysis. What is the main business problem this document is meant to solve?"
+
+You: "I need to present this to senior management for quarterly budget approval"
+
+Agent: "That makes sense. Who is your target audience for this analysis? Are we talking about C-level executives, finance team, or a broader audience?"
+
+You: "C-level executives who need high-level insights"
+
+Agent: "Perfect. What are your top 3 priorities for this analysis?"
+
+[Conversation continues...]
+```
+
+### Benefits:
+- ✅ **Personalized Analysis** - Tailored to your specific needs
+- ✅ **Context-Aware Insights** - Understands your business domain  
+- ✅ **Audience-Specific Output** - Matches your target audience
+- ✅ **Implementation Roadmap** - Actionable next steps
+- ✅ **Risk Assessment** - Customized to your constraints
 
 ## 🧪 Testing
 
