@@ -27,6 +27,13 @@ from nltk.corpus import stopwords
 from nltk.tokenize import word_tokenize, sent_tokenize
 from nltk.sentiment import SentimentIntensityAnalyzer
 
+# Import enhanced summarizer
+try:
+    from .enhanced_summarizer import EnhancedDocumentSummarizer
+except ImportError:
+    # Fallback if enhanced summarizer is not available
+    EnhancedDocumentSummarizer = None
+
 @dataclass
 class IntelligentAnalysis:
     """Free intelligent analysis results"""
@@ -42,6 +49,8 @@ class IntelligentAnalysis:
     risk_indicators: List[str]
     automation_opportunities: List[str]
     confidence_score: float
+    # Enhanced summary fields
+    enhanced_summary: Optional[Any] = None  # EnhancedSummary object
 
 class FreeIntelligentAnalyzer:
     """
@@ -59,6 +68,21 @@ class FreeIntelligentAnalyzer:
         except:
             self.stop_words = set()
             self.sentiment_analyzer = None
+        
+        # Initialize enhanced summarizer
+        self.enhanced_summarizer = None
+        if EnhancedDocumentSummarizer:
+            try:
+                self.enhanced_summarizer = EnhancedDocumentSummarizer(use_llm=True)
+                self.logger.info("Enhanced summarizer initialized with LLM support")
+            except Exception as e:
+                self.logger.warning(f"Enhanced summarizer initialization failed: {e}")
+                try:
+                    self.enhanced_summarizer = EnhancedDocumentSummarizer(use_llm=False)
+                    self.logger.info("Enhanced summarizer initialized in local mode")
+                except Exception as e2:
+                    self.logger.warning(f"Enhanced summarizer fallback failed: {e2}")
+                    self.enhanced_summarizer = None
         
         # Business vocabulary patterns (rule-based)
         self.business_patterns = {
@@ -140,8 +164,34 @@ class FreeIntelligentAnalyzer:
         # Automation opportunities
         automation = self._identify_automation_opportunities(excel_analysis)
         
-        # Calculate confidence score
-        confidence = self._calculate_confidence_score(excel_analysis, formula_analysis)
+        # Calculate base confidence score
+        base_confidence = self._calculate_confidence_score(excel_analysis, formula_analysis)
+        
+        # Generate enhanced summary if available
+        enhanced_summary = None
+        final_confidence = base_confidence
+        
+        if self.enhanced_summarizer:
+            try:
+                self.logger.info("Generating enhanced business summary...")
+                import asyncio
+                # Run async method in sync context
+                loop = asyncio.new_event_loop()
+                asyncio.set_event_loop(loop)
+                try:
+                    enhanced_summary = loop.run_until_complete(
+                        self.enhanced_summarizer.generate_enhanced_summary(excel_analysis, formula_analysis)
+                    )
+                    self.logger.info(f"Enhanced summary generated using {enhanced_summary.generation_method}")
+                    
+                    # Use the enhanced confidence score as it's more comprehensive
+                    final_confidence = enhanced_summary.confidence_score
+                    
+                finally:
+                    loop.close()
+            except Exception as e:
+                self.logger.warning(f"Enhanced summary generation failed: {e}")
+                enhanced_summary = None
         
         return IntelligentAnalysis(
             document_type='excel',
@@ -155,7 +205,8 @@ class FreeIntelligentAnalyzer:
             content_themes=themes,
             risk_indicators=risks,
             automation_opportunities=automation,
-            confidence_score=confidence
+            confidence_score=final_confidence,
+            enhanced_summary=enhanced_summary
         )
     
     def analyze_word_content(self, word_analysis) -> IntelligentAnalysis:
