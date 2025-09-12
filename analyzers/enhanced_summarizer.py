@@ -546,6 +546,9 @@ class EnhancedDocumentSummarizer:
         # Next steps
         next_steps = self._generate_next_steps(business_context, basic_info)
         
+        # Calculate confidence based on available data
+        confidence = self._calculate_enhanced_confidence(basic_info, business_context, document_context)
+        
         return EnhancedSummary(
             executive_summary=executive_summary,
             what_this_document_does=what_it_does,
@@ -557,7 +560,7 @@ class EnhancedDocumentSummarizer:
             actionable_insights=actionable_insights,
             potential_concerns=concerns,
             next_steps_suggestions=next_steps,
-            confidence_score=business_context.get('confidence', 0.7),
+            confidence_score=confidence,
             generation_method='enhanced_local'
         )
     
@@ -572,13 +575,22 @@ class EnhancedDocumentSummarizer:
         context_type = business_context['type']
         
         if context_type == 'financial_modeling':
-            return f"This is a sophisticated financial analysis workbook ({filename}) containing {ws_count} worksheets with {formula_count} calculations. It appears to be designed for risk assessment and portfolio management, enabling stakeholders to understand financial exposures and make informed investment decisions. The document shows evidence of quantitative modeling with financial metrics and risk calculations."
+            if formula_count > 0:
+                return f"This is a sophisticated financial analysis workbook ({filename}) containing {ws_count} worksheets with {formula_count} calculations. It appears to be designed for risk assessment and portfolio management, enabling stakeholders to understand financial exposures and make informed investment decisions. The document shows evidence of quantitative modeling with financial metrics and risk calculations."
+            else:
+                return f"This is a financial data workbook ({filename}) containing {ws_count} worksheets with structured financial data. It appears to be designed for risk assessment and portfolio management, providing foundational data for financial analysis and decision-making. The document serves as a data repository for financial metrics and risk-related information."
         
         elif context_type == 'budgeting_planning':
-            return f"{filename} is a comprehensive budgeting and planning tool with {ws_count} worksheets containing {formula_count} financial calculations. This workbook enables finance teams to track expenses, forecast revenue, and plan resource allocation. It serves as a central financial planning document for budget management and strategic financial decision-making."
+            if formula_count > 0:
+                return f"{filename} is a comprehensive budgeting and planning tool with {ws_count} worksheets containing {formula_count} financial calculations. This workbook enables finance teams to track expenses, forecast revenue, and plan resource allocation. It serves as a central financial planning document for budget management and strategic financial decision-making."
+            else:
+                return f"{filename} is a budgeting and planning data repository with {ws_count} worksheets containing structured financial data. This workbook serves as a foundation for budget analysis, providing organized data for expense tracking, revenue planning, and resource allocation decisions."
         
         elif context_type == 'data_analysis':
-            return f"This analytical workbook ({filename}) contains {ws_count} data worksheets with {formula_count} analytical calculations. It's designed to provide business intelligence insights through data analysis, helping stakeholders identify trends, patterns, and performance metrics. The document supports data-driven decision making across the organization."
+            if formula_count > 0:
+                return f"This analytical workbook ({filename}) contains {ws_count} data worksheets with {formula_count} analytical calculations. It's designed to provide business intelligence insights through data analysis, helping stakeholders identify trends, patterns, and performance metrics. The document supports data-driven decision making across the organization."
+            else:
+                return f"This data repository workbook ({filename}) contains {ws_count} worksheets with structured business data. It's designed as a foundational dataset for business intelligence analysis, providing organized information for identifying trends, patterns, and performance metrics to support data-driven decision making."
         
         else:
             # General business document
@@ -613,11 +625,17 @@ class EnhancedDocumentSummarizer:
             capabilities.append("analyze risk and statistical relationships")
         
         if not capabilities:
-            capabilities = ["perform business calculations and analysis"]
+            if formula_patterns.get('top_functions'):
+                capabilities = ["perform business calculations and analysis"]
+            else:
+                capabilities = ["store and organize business data"]
         
         capabilities_text = ", ".join(capabilities[:-1]) + f" and {capabilities[-1]}" if len(capabilities) > 1 else capabilities[0]
         
-        return f"This workbook serves as a tool for {purpose_base}. It enables users to {capabilities_text}. The document provides a structured framework for analyzing business data, generating insights, and supporting strategic decision-making processes."
+        if formula_patterns.get('top_functions'):
+            return f"This workbook serves as a tool for {purpose_base}. It enables users to {capabilities_text}. The document provides a structured framework for analyzing business data, generating insights, and supporting strategic decision-making processes."
+        else:
+            return f"This workbook serves as a data repository for {purpose_base}. It enables users to {capabilities_text} in an organized manner. The document provides a structured foundation for business data organization, serving as input for analysis tools and supporting data-driven decision-making processes."
     
     def _generate_main_findings(self, document_context: Dict, business_context: Dict) -> List[str]:
         """Generate main findings"""
@@ -725,7 +743,11 @@ class EnhancedDocumentSummarizer:
         complexity_score = basic_info['complexity_score']
         formula_count = basic_info['total_formulas']
         
-        if complexity_score > 20:
+        # Handle 0-formula documents specially
+        if formula_count == 0:
+            level = "data-focused"
+            description = "primarily contains structured data and requires basic Excel skills to navigate"
+        elif complexity_score > 20:
             level = "highly sophisticated"
             description = "requires advanced Excel expertise"
         elif complexity_score > 10:
@@ -842,6 +864,55 @@ class EnhancedDocumentSummarizer:
             steps.append("Consider implementing version control and change management processes")
         
         return steps[:5]
+    
+    def _calculate_enhanced_confidence(self, basic_info: Dict, business_context: Dict, document_context: Dict) -> float:
+        """Calculate enhanced confidence score based on available data"""
+        
+        confidence = 0.5  # Base confidence
+        
+        # Formula-based confidence
+        formula_count = basic_info.get('total_formulas', 0)
+        if formula_count > 50:
+            confidence += 0.2  # High formula density
+        elif formula_count > 10:
+            confidence += 0.15  # Moderate formula density
+        elif formula_count > 0:
+            confidence += 0.05  # Some formulas
+        # No penalty for 0 formulas - might be data-only document
+        
+        # Structure-based confidence
+        worksheet_count = basic_info.get('worksheets', 0)
+        if worksheet_count > 3:
+            confidence += 0.1  # Multi-sheet structure
+        elif worksheet_count > 1:
+            confidence += 0.05  # Some structure
+        
+        # Business context confidence
+        business_confidence = business_context.get('confidence', 0)
+        if business_confidence > 0.5:
+            confidence += 0.1  # Good business context detection
+        elif business_confidence > 0.2:
+            confidence += 0.05  # Some business context
+        
+        # Content richness
+        text_content = document_context.get('text_content', [])
+        if len(text_content) > 50:
+            confidence += 0.1  # Rich text content
+        elif len(text_content) > 10:
+            confidence += 0.05  # Some text content
+        
+        # Business indicators
+        business_indicators = document_context.get('business_indicators', {})
+        indicator_count = sum(len(indicators) for indicators in business_indicators.values())
+        if indicator_count > 10:
+            confidence += 0.05  # Rich business indicators
+        
+        # Special handling for data-only documents
+        if formula_count == 0 and worksheet_count > 1 and len(text_content) > 20:
+            # This looks like a structured data document
+            confidence += 0.1  # Boost for structured data
+        
+        return min(0.95, confidence)  # Cap at 95%
     
     def _generate_fallback_executive_summary(self, business_context: Dict) -> str:
         """Generate fallback executive summary when LLM fails"""

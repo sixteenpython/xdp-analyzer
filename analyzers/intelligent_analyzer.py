@@ -164,11 +164,13 @@ class FreeIntelligentAnalyzer:
         # Automation opportunities
         automation = self._identify_automation_opportunities(excel_analysis)
         
-        # Calculate confidence score
-        confidence = self._calculate_confidence_score(excel_analysis, formula_analysis)
+        # Calculate base confidence score
+        base_confidence = self._calculate_confidence_score(excel_analysis, formula_analysis)
         
         # Generate enhanced summary if available
         enhanced_summary = None
+        final_confidence = base_confidence
+        
         if self.enhanced_summarizer:
             try:
                 self.logger.info("Generating enhanced business summary...")
@@ -181,6 +183,10 @@ class FreeIntelligentAnalyzer:
                         self.enhanced_summarizer.generate_enhanced_summary(excel_analysis, formula_analysis)
                     )
                     self.logger.info(f"Enhanced summary generated using {enhanced_summary.generation_method}")
+                    
+                    # Use the enhanced confidence score as it's more comprehensive
+                    final_confidence = enhanced_summary.confidence_score
+                    
                 finally:
                     loop.close()
             except Exception as e:
@@ -199,7 +205,7 @@ class FreeIntelligentAnalyzer:
             content_themes=themes,
             risk_indicators=risks,
             automation_opportunities=automation,
-            confidence_score=confidence,
+            confidence_score=final_confidence,
             enhanced_summary=enhanced_summary
         )
     
