@@ -1178,7 +1178,7 @@ class EnhancedDocumentSummarizer:
         return explanations
     
     def _create_detailed_business_explanation(self, formula: Dict) -> str:
-        """Create a detailed business explanation for a specific calculation"""
+        """Create a detailed business explanation for a specific calculation with enhanced financial modeling context"""
         
         purpose = formula.get('business_purpose', {})
         formula_text = formula.get('formula', '').upper()
@@ -1186,8 +1186,16 @@ class EnhancedDocumentSummarizer:
         # Start with the general purpose
         explanation = purpose.get('explanation', 'This calculation processes business data')
         
-        # Add specific function explanations
-        if 'SUM' in formula_text:
+        # Enhanced function explanations with financial context
+        if 'PERCENTILE' in formula_text and any(term in formula_text for term in ['VAR', 'RISK']):
+            explanation += " by calculating Value at Risk (VaR) using the percentile method to estimate potential losses"
+        elif 'NORM.DIST' in formula_text and 'EXP' in formula_text:
+            explanation += " by implementing Black-Scholes option pricing model using normal distribution and exponential functions"
+        elif 'MMULT' in formula_text and 'CORREL' in formula_text:
+            explanation += " by performing matrix multiplication for portfolio risk calculation using correlation matrices"
+        elif 'RAND' in formula_text and 'AVERAGE' in formula_text:
+            explanation += " by running Monte Carlo simulation with random number generation for probabilistic analysis"
+        elif 'SUM' in formula_text:
             explanation += " by adding up values"
         elif 'AVERAGE' in formula_text:
             explanation += " by calculating the average"
@@ -1196,12 +1204,24 @@ class EnhancedDocumentSummarizer:
         elif any(func in formula_text for func in ['VLOOKUP', 'INDEX', 'MATCH']):
             explanation += " by looking up related information from reference data"
         elif any(func in formula_text for func in ['NPV', 'IRR', 'PMT']):
-            explanation += " by performing financial calculations"
+            explanation += " by performing time value of money calculations for investment analysis"
+        elif any(func in formula_text for func in ['STDEV', 'VAR']):
+            explanation += " by calculating statistical measures of variability and risk"
+        
+        # Add mathematical framework context
+        math_framework = purpose.get('mathematical_framework', '')
+        if math_framework:
+            explanation += f" using {math_framework}"
         
         # Add context about likely use case
         use_case = purpose.get('likely_use_case', '')
         if use_case:
             explanation += f". This is typically used for {use_case}"
+        
+        # Add regulatory context if applicable
+        model_complexity = purpose.get('model_complexity', '')
+        if model_complexity in ['advanced', 'highly_advanced']:
+            explanation += ". This sophisticated calculation may require model validation and regulatory oversight"
         
         return explanation + "."
     
@@ -1218,12 +1238,20 @@ class EnhancedDocumentSummarizer:
         }
     
     def _assess_calculation_impact(self, formula: Dict) -> str:
-        """Assess the business impact of this calculation"""
+        """Assess the business impact of this calculation with enhanced financial modeling perspective"""
         
         purpose = formula.get('business_purpose', {}).get('primary_purpose', 'unknown')
+        model_complexity = formula.get('business_purpose', {}).get('model_complexity', 'basic')
         
         impact_descriptions = {
             'financial_calculation': 'High impact - affects financial reporting and investment decisions',
+            'risk_modeling': 'Critical impact - affects regulatory capital, risk limits, and compliance reporting',
+            'derivatives_pricing': 'Critical impact - affects trading decisions, hedging strategies, and P&L attribution',
+            'portfolio_analysis': 'High impact - affects asset allocation, risk budgeting, and performance attribution',
+            'monte_carlo_simulation': 'High impact - affects scenario analysis, stress testing, and capital planning',
+            'option_pricing': 'Critical impact - affects derivatives trading, risk management, and fair value reporting',
+            'fixed_income_calculation': 'High impact - affects bond pricing, duration hedging, and interest rate risk management',
+            'time_series_analysis': 'Medium-High impact - affects forecasting, trend analysis, and strategic planning',
             'data_aggregation': 'Medium impact - affects reporting accuracy and KPI visibility',
             'data_lookup': 'Medium impact - affects data consistency and operational efficiency',
             'conditional_logic': 'High impact - affects automated decision-making processes',
@@ -1231,7 +1259,15 @@ class EnhancedDocumentSummarizer:
             'date_calculation': 'Medium impact - affects time-based analysis and scheduling'
         }
         
-        return impact_descriptions.get(purpose, 'Impact varies based on business context and usage')
+        base_impact = impact_descriptions.get(purpose, 'Impact varies based on business context and usage')
+        
+        # Enhance impact assessment based on model complexity
+        if model_complexity in ['highly_advanced', 'advanced']:
+            if 'Critical' not in base_impact and 'High' not in base_impact:
+                base_impact = 'High impact - ' + base_impact.split(' - ')[1] if ' - ' in base_impact else base_impact
+            base_impact += '. Requires model validation and regulatory oversight.'
+        
+        return base_impact
 
 # Example usage and testing
 if __name__ == "__main__":

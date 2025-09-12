@@ -388,7 +388,7 @@ class AdvancedExcelParser:
             # Basic analysis structure for XLSB
             analysis = ExcelAnalysis(
                 filename=file_path.name,
-                file_size=file_path.stat().st_size,
+                file_type=file_path.suffix,
                 worksheets=[],
                 vba_code={},
                 defined_names=[],
@@ -430,7 +430,7 @@ class AdvancedExcelParser:
             # Basic analysis structure for XLS
             analysis = ExcelAnalysis(
                 filename=file_path.name,
-                file_size=file_path.stat().st_size,
+                file_type=file_path.suffix,
                 worksheets=[],
                 vba_code={},
                 defined_names=[],
@@ -592,17 +592,88 @@ class AdvancedExcelParser:
         return metrics
     
     def _infer_formula_purpose(self, formula: str, cell_address: str) -> Dict[str, Any]:
-        """Infer the business purpose of a formula"""
+        """Infer the business purpose of a formula with enhanced financial modeling detection"""
         formula_lower = formula.upper()
         purpose_info = {
             'primary_purpose': 'unknown',
             'business_function': '',
             'explanation': '',
-            'likely_use_case': ''
+            'likely_use_case': '',
+            'mathematical_framework': '',
+            'risk_assessment_type': '',
+            'model_complexity': 'basic'
         }
         
-        # Financial calculations
+        # Enhanced Financial calculations with specific modeling detection
         if any(func in formula_lower for func in ['NPV', 'IRR', 'PMT', 'PV', 'FV']):
+            purpose_info.update({
+                'primary_purpose': 'financial_calculation',
+                'business_function': 'Financial Analysis',
+                'explanation': 'Performs financial calculations like net present value, internal rate of return, or payment calculations',
+                'likely_use_case': 'Investment analysis, loan calculations, or financial modeling',
+                'mathematical_framework': 'Time value of money calculations',
+                'model_complexity': 'intermediate'
+            })
+        
+        # VaR and Risk Modeling
+        elif any(keyword in formula_lower for keyword in ['PERCENTILE', 'NORM.INV', 'CONFIDENCE']) and any(risk_term in formula_lower for risk_term in ['VAR', 'RISK', 'LOSS']):
+            purpose_info.update({
+                'primary_purpose': 'risk_modeling',
+                'business_function': 'Value at Risk Calculation',
+                'explanation': 'Calculates Value at Risk (VaR) using statistical methods to estimate potential losses',
+                'likely_use_case': 'Portfolio risk management, regulatory reporting, stress testing',
+                'mathematical_framework': 'Statistical risk modeling (VaR)',
+                'risk_assessment_type': 'market_risk',
+                'model_complexity': 'advanced'
+            })
+        
+        # Monte Carlo Simulation
+        elif any(func in formula_lower for func in ['RAND', 'RANDBETWEEN', 'NORM.DIST']) and 'AVERAGE' in formula_lower:
+            purpose_info.update({
+                'primary_purpose': 'monte_carlo_simulation',
+                'business_function': 'Monte Carlo Analysis',
+                'explanation': 'Performs Monte Carlo simulation for probabilistic analysis and scenario modeling',
+                'likely_use_case': 'Risk assessment, option pricing, project valuation under uncertainty',
+                'mathematical_framework': 'Stochastic simulation modeling',
+                'model_complexity': 'advanced'
+            })
+        
+        # Option Pricing Models (Black-Scholes indicators)
+        elif any(func in formula_lower for func in ['EXP', 'LN', 'SQRT']) and any(term in formula_lower for term in ['STRIKE', 'EXPIRY', 'VOLATILITY']):
+            purpose_info.update({
+                'primary_purpose': 'option_pricing',
+                'business_function': 'Derivatives Pricing',
+                'explanation': 'Calculates option prices using mathematical models like Black-Scholes',
+                'likely_use_case': 'Options trading, derivatives valuation, hedging strategies',
+                'mathematical_framework': 'Black-Scholes or binomial option pricing model',
+                'model_complexity': 'advanced'
+            })
+        
+        # Correlation and Portfolio Analysis
+        elif any(func in formula_lower for func in ['CORREL', 'COVAR', 'VAR', 'STDEV']) and len(self._extract_formula_references(formula)) > 2:
+            purpose_info.update({
+                'primary_purpose': 'portfolio_analysis',
+                'business_function': 'Portfolio Risk Analysis',
+                'explanation': 'Analyzes correlations and covariances between assets for portfolio optimization',
+                'likely_use_case': 'Portfolio construction, diversification analysis, risk budgeting',
+                'mathematical_framework': 'Modern Portfolio Theory (MPT)',
+                'risk_assessment_type': 'portfolio_risk',
+                'model_complexity': 'intermediate'
+            })
+        
+        # Time Series Analysis
+        elif any(func in formula_lower for func in ['TREND', 'GROWTH', 'FORECAST']) or ('INDEX' in formula_lower and 'MATCH' in formula_lower):
+            purpose_info.update({
+                'primary_purpose': 'time_series_analysis',
+                'business_function': 'Time Series Forecasting',
+                'explanation': 'Performs time series analysis and forecasting using historical data patterns',
+                'likely_use_case': 'Revenue forecasting, trend analysis, seasonal adjustment',
+                'mathematical_framework': 'Time series modeling and regression analysis',
+                'model_complexity': 'intermediate'
+            })
+        
+        # Financial ratios and metrics
+        elif any(func in formula_lower for func in ['NPV', 'IRR', 'PMT', 'PV', 'FV']):
             purpose_info.update({
                 'primary_purpose': 'financial_calculation',
                 'business_function': 'Financial Analysis',
@@ -646,14 +717,41 @@ class AdvancedExcelParser:
                 'likely_use_case': 'Data cleaning, report formatting, or ID generation'
             })
         
-        # Date/time calculations
+        # Date/time calculations with financial context
         elif any(func in formula_lower for func in ['DATE', 'DATEDIF', 'NETWORKDAYS', 'WORKDAY']):
-            purpose_info.update({
-                'primary_purpose': 'date_calculation',
-                'business_function': 'Date/Time Analysis',
-                'explanation': 'Performs date or time-based calculations',
-                'likely_use_case': 'Project scheduling, aging analysis, or time tracking'
-            })
+            if any(term in formula_lower for term in ['MATURITY', 'SETTLEMENT', 'COUPON', 'YIELD']):
+                purpose_info.update({
+                    'primary_purpose': 'fixed_income_calculation',
+                    'business_function': 'Fixed Income Analysis',
+                    'explanation': 'Calculates bond-related metrics including yield, duration, and accrued interest',
+                    'likely_use_case': 'Bond portfolio management, yield analysis, duration matching',
+                    'mathematical_framework': 'Fixed income mathematics',
+                    'model_complexity': 'intermediate'
+                })
+            else:
+                purpose_info.update({
+                    'primary_purpose': 'date_calculation',
+                    'business_function': 'Date/Time Analysis',
+                    'explanation': 'Performs date or time-based calculations',
+                    'likely_use_case': 'Project scheduling, aging analysis, or time tracking',
+                    'mathematical_framework': 'Calendar mathematics'
+                })
+        
+        # Enhanced complexity assessment
+        complexity_factors = [
+            len(self._extract_formula_functions(formula)),
+            len(self._extract_formula_references(formula)),
+            formula.count('IF'),
+            formula.count('(')
+        ]
+        
+        complexity_score = sum(complexity_factors)
+        if complexity_score > 15:
+            purpose_info['model_complexity'] = 'highly_advanced'
+        elif complexity_score > 10:
+            purpose_info['model_complexity'] = 'advanced'
+        elif complexity_score > 5:
+            purpose_info['model_complexity'] = 'intermediate'
         
         return purpose_info
     
@@ -796,8 +894,11 @@ class AdvancedExcelParser:
         return relationships
     
     def _identify_calculation_chains(self, formulas: List[Dict]) -> List[Dict]:
-        """Identify sequential calculation chains for business process documentation"""
+        """Identify sequential calculation chains for business process documentation with enhanced financial workflow detection"""
         chains = []
+        
+        # First, identify potential financial modeling workflows
+        financial_workflows = self._identify_financial_workflows(formulas)
         
         # Group by calculation type and purpose
         chains_by_purpose = {}
@@ -807,13 +908,16 @@ class AdvancedExcelParser:
                 chains_by_purpose[purpose] = []
             chains_by_purpose[purpose].append(formula)
         
-        # Create chain documentation
+        # Create chain documentation with enhanced financial workflow context
         for purpose, formula_group in chains_by_purpose.items():
             if len(formula_group) > 1:
                 chain_info = {
                     'business_purpose': purpose,
                     'steps': [],
-                    'description': self._generate_process_description(purpose, formula_group)
+                    'description': self._generate_process_description(purpose, formula_group),
+                    'financial_workflow_type': self._classify_financial_workflow(purpose, formula_group),
+                    'mathematical_complexity': self._assess_mathematical_complexity(formula_group),
+                    'regulatory_relevance': self._assess_regulatory_relevance(purpose, formula_group)
                 }
                 
                 for i, formula in enumerate(formula_group, 1):
@@ -828,12 +932,21 @@ class AdvancedExcelParser:
                 
                 chains.append(chain_info)
         
+        # Add financial workflows to chains
+        chains.extend(financial_workflows)
+        
         return chains
     
     def _generate_process_description(self, purpose: str, formulas: List[Dict]) -> str:
-        """Generate a business process description for a group of related calculations"""
+        """Generate a business process description for a group of related calculations with enhanced financial context"""
         descriptions = {
-            'financial_calculation': f'This financial calculation process involves {len(formulas)} steps to compute financial metrics, ratios, or investment analysis.',
+            'risk_modeling': f'This risk modeling process implements {len(formulas)} calculation steps to quantify market risk, credit risk, or operational risk using advanced statistical methods.',
+            'monte_carlo_simulation': f'This Monte Carlo simulation framework uses {len(formulas)} computational steps to perform probabilistic analysis and scenario modeling for risk assessment.',
+            'option_pricing': f'This derivatives pricing engine implements {len(formulas)} steps of the Black-Scholes or binomial model to value options and other derivatives.',
+            'portfolio_analysis': f'This portfolio optimization process analyzes {len(formulas)} calculations to determine optimal asset allocation, risk budgeting, and diversification strategies.',
+            'time_series_analysis': f'This time series modeling framework performs {len(formulas)} analytical steps for forecasting, trend analysis, and seasonal decomposition.',
+            'fixed_income_calculation': f'This fixed income analysis process implements {len(formulas)} calculations for bond pricing, yield analysis, and duration/convexity measurement.',
+            'financial_calculation': f'This financial calculation process involves {len(formulas)} steps to compute financial metrics, ratios, or investment analysis using time value of money principles.',
             'data_aggregation': f'This data aggregation process summarizes information across {len(formulas)} calculation steps to create consolidated reports or KPIs.',
             'data_lookup': f'This data lookup process retrieves and cross-references information through {len(formulas)} lookup operations.',
             'conditional_logic': f'This decision logic process applies business rules through {len(formulas)} conditional statements.',
@@ -856,6 +969,185 @@ class AdvancedExcelParser:
         
         return explanations.get(calc_type, f"Processes data for {purpose.get('business_function', 'business purposes')}")
     
+    def _identify_financial_workflows(self, formulas: List[Dict]) -> List[Dict]:
+        """Identify specific financial modeling workflows"""
+        workflows = []
+        
+        # Group formulas by worksheet to identify workflow patterns
+        worksheet_formulas = {}
+        for formula in formulas:
+            ws_name = formula.get('worksheet', 'Unknown')
+            if ws_name not in worksheet_formulas:
+                worksheet_formulas[ws_name] = []
+            worksheet_formulas[ws_name].append(formula)
+        
+        for ws_name, ws_formulas in worksheet_formulas.items():
+            # Detect VaR calculation workflow
+            if self._detect_var_workflow(ws_formulas):
+                workflows.append({
+                    'workflow_type': 'var_calculation',
+                    'worksheet': ws_name,
+                    'description': 'Value at Risk (VaR) calculation workflow implementing statistical risk measurement',
+                    'steps': self._document_var_steps(ws_formulas),
+                    'regulatory_framework': 'Basel III, Market Risk Capital Requirements',
+                    'mathematical_method': 'Historical Simulation, Parametric VaR, or Monte Carlo'
+                })
+            
+            # Detect option pricing workflow
+            if self._detect_option_pricing_workflow(ws_formulas):
+                workflows.append({
+                    'workflow_type': 'option_pricing',
+                    'worksheet': ws_name,
+                    'description': 'Option pricing model implementing Black-Scholes or binomial tree methodology',
+                    'steps': self._document_option_pricing_steps(ws_formulas),
+                    'mathematical_method': 'Black-Scholes-Merton model or Binomial/Trinomial trees',
+                    'use_cases': 'Options trading, hedging strategies, embedded options valuation'
+                })
+            
+            # Detect portfolio optimization workflow
+            if self._detect_portfolio_optimization_workflow(ws_formulas):
+                workflows.append({
+                    'workflow_type': 'portfolio_optimization',
+                    'worksheet': ws_name,
+                    'description': 'Portfolio optimization implementing Modern Portfolio Theory (MPT)',
+                    'steps': self._document_portfolio_steps(ws_formulas),
+                    'mathematical_method': 'Mean-variance optimization, efficient frontier calculation',
+                    'theoretical_framework': 'Modern Portfolio Theory (Markowitz)'
+                })
+        
+        return workflows
+    
+    def _detect_var_workflow(self, formulas: List[Dict]) -> bool:
+        """Detect VaR calculation patterns"""
+        var_indicators = ['PERCENTILE', 'CONFIDENCE', 'NORM.INV', 'VAR', 'STDEV']
+        formula_texts = [f.get('formula', '').upper() for f in formulas]
+        all_text = ' '.join(formula_texts)
+        
+        return sum(1 for indicator in var_indicators if indicator in all_text) >= 2
+    
+    def _detect_option_pricing_workflow(self, formulas: List[Dict]) -> bool:
+        """Detect option pricing model patterns"""
+        option_indicators = ['EXP', 'LN', 'SQRT', 'NORM.DIST', 'NORM.INV']
+        formula_texts = [f.get('formula', '').upper() for f in formulas]
+        all_text = ' '.join(formula_texts)
+        
+        # Need exponential/log functions + normal distribution functions
+        exp_log_count = sum(1 for func in ['EXP', 'LN'] if func in all_text)
+        norm_count = sum(1 for func in ['NORM.DIST', 'NORM.INV'] if func in all_text)
+        
+        return exp_log_count >= 1 and norm_count >= 1
+    
+    def _detect_portfolio_optimization_workflow(self, formulas: List[Dict]) -> bool:
+        """Detect portfolio optimization patterns"""
+        portfolio_indicators = ['CORREL', 'COVAR', 'VAR', 'STDEV', 'MMULT']
+        formula_texts = [f.get('formula', '').upper() for f in formulas]
+        all_text = ' '.join(formula_texts)
+        
+        return sum(1 for indicator in portfolio_indicators if indicator in all_text) >= 3
+    
+    def _document_var_steps(self, formulas: List[Dict]) -> List[Dict]:
+        """Document VaR calculation steps"""
+        steps = []
+        for i, formula in enumerate(formulas, 1):
+            if any(func in formula.get('formula', '').upper() for func in ['PERCENTILE', 'CONFIDENCE', 'NORM.INV']):
+                steps.append({
+                    'step_number': i,
+                    'description': 'Calculate Value at Risk using statistical percentile method',
+                    'formula': formula.get('formula', ''),
+                    'business_meaning': 'Determines maximum expected loss at specified confidence level'
+                })
+        return steps
+    
+    def _document_option_pricing_steps(self, formulas: List[Dict]) -> List[Dict]:
+        """Document option pricing calculation steps"""
+        steps = []
+        for i, formula in enumerate(formulas, 1):
+            formula_text = formula.get('formula', '').upper()
+            if 'LN' in formula_text:
+                steps.append({
+                    'step_number': i,
+                    'description': 'Calculate natural logarithm component of option pricing model',
+                    'formula': formula.get('formula', ''),
+                    'business_meaning': 'Computes log-normal distribution parameters for stock price modeling'
+                })
+            elif 'EXP' in formula_text:
+                steps.append({
+                    'step_number': i,
+                    'description': 'Calculate exponential component for risk-free discounting',
+                    'formula': formula.get('formula', ''),
+                    'business_meaning': 'Applies risk-free rate discounting to present value of option payoff'
+                })
+        return steps
+    
+    def _document_portfolio_steps(self, formulas: List[Dict]) -> List[Dict]:
+        """Document portfolio optimization steps"""
+        steps = []
+        for i, formula in enumerate(formulas, 1):
+            formula_text = formula.get('formula', '').upper()
+            if 'CORREL' in formula_text or 'COVAR' in formula_text:
+                steps.append({
+                    'step_number': i,
+                    'description': 'Calculate correlation or covariance matrix for asset relationships',
+                    'formula': formula.get('formula', ''),
+                    'business_meaning': 'Measures diversification benefits and risk dependencies between assets'
+                })
+            elif 'MMULT' in formula_text:
+                steps.append({
+                    'step_number': i,
+                    'description': 'Perform matrix multiplication for portfolio risk calculation',
+                    'formula': formula.get('formula', ''),
+                    'business_meaning': 'Computes portfolio variance using weights and covariance matrix'
+                })
+        return steps
+    
+    def _classify_financial_workflow(self, purpose: str, formulas: List[Dict]) -> str:
+        """Classify the type of financial workflow"""
+        workflow_types = {
+            'risk_modeling': 'Market Risk Management',
+            'monte_carlo_simulation': 'Stochastic Modeling',
+            'option_pricing': 'Derivatives Valuation',
+            'portfolio_analysis': 'Asset Management',
+            'time_series_analysis': 'Econometric Forecasting',
+            'fixed_income_calculation': 'Fixed Income Analytics'
+        }
+        return workflow_types.get(purpose, 'General Financial Analysis')
+    
+    def _assess_mathematical_complexity(self, formulas: List[Dict]) -> str:
+        """Assess the mathematical complexity of a formula group"""
+        complexity_score = 0
+        
+        for formula in formulas:
+            formula_text = formula.get('formula', '').upper()
+            # Advanced mathematical functions
+            if any(func in formula_text for func in ['EXP', 'LN', 'LOG', 'SQRT', 'POWER']):
+                complexity_score += 3
+            # Statistical functions
+            if any(func in formula_text for func in ['NORM.DIST', 'NORM.INV', 'PERCENTILE', 'CONFIDENCE']):
+                complexity_score += 2
+            # Matrix operations
+            if any(func in formula_text for func in ['MMULT', 'TRANSPOSE', 'MINVERSE']):
+                complexity_score += 4
+        
+        if complexity_score > 15:
+            return 'Highly Advanced (Graduate-level mathematics)'
+        elif complexity_score > 8:
+            return 'Advanced (Undergraduate-level mathematics)'
+        elif complexity_score > 3:
+            return 'Intermediate (Statistics and algebra)'
+        else:
+            return 'Basic (Arithmetic operations)'
+    
+    def _assess_regulatory_relevance(self, purpose: str, formulas: List[Dict]) -> str:
+        """Assess regulatory relevance of financial calculations"""
+        regulatory_map = {
+            'risk_modeling': 'Basel III Market Risk Framework, Solvency II',
+            'monte_carlo_simulation': 'CCAR Stress Testing, IFRS 13 Fair Value',
+            'option_pricing': 'IFRS 13 Fair Value Measurement, ASC 820',
+            'portfolio_analysis': 'MiFID II Best Execution, Fiduciary Rules',
+            'fixed_income_calculation': 'Basel III Interest Rate Risk, IFRS 9'
+        }
+        return regulatory_map.get(purpose, 'General business reporting standards')
+    
     def export_analysis(self, analysis: ExcelAnalysis, output_path: str) -> None:
         """Export analysis results to JSON"""
         
@@ -867,15 +1159,17 @@ class AdvancedExcelParser:
         
         self.logger.info(f"Analysis exported to {output_path}")
 
-# Example usage
+# Example usage with enhanced financial modeling analysis
 if __name__ == "__main__":
     parser = AdvancedExcelParser()
     
-    # Test with different Excel formats
+    # Test with different Excel formats, especially financial models
     test_files = [
         "sample.xlsx",
-        "complex_model.xlsm", 
-        "binary_file.xlsb",
+        "var_model.xlsx",
+        "option_pricing.xlsm", 
+        "portfolio_optimization.xlsx",
+        "monte_carlo_simulation.xlsb",
         "legacy_file.xls"
     ]
     
@@ -883,12 +1177,28 @@ if __name__ == "__main__":
         if Path(file_path).exists():
             try:
                 analysis = parser.parse(file_path)
-                print(f"\nAnalysis for {file_path}:")
+                print(f"\nEnhanced Analysis for {file_path}:")
                 print(f"Worksheets: {len(analysis.worksheets)}")
                 print(f"VBA modules: {len(analysis.vba_code)}")
+                print(f"Financial workflows detected: {len([c for c in analysis.business_logic.get('calculation_chains', []) if 'financial' in c.get('workflow_type', '')])}")
                 
-                # Export detailed analysis
-                parser.export_analysis(analysis, f"{file_path}_analysis.json")
+                # Show financial modeling insights
+                for workflow in analysis.business_logic.get('calculation_chains', []):
+                    if workflow.get('workflow_type') in ['var_calculation', 'option_pricing', 'portfolio_optimization']:
+                        print(f"  - {workflow['workflow_type']}: {workflow.get('mathematical_method', 'Unknown method')}")
+                
+                # Export detailed analysis with enhanced financial insights
+                parser.export_analysis(analysis, f"{file_path}_enhanced_analysis.json")
                 
             except Exception as e:
                 print(f"Error parsing {file_path}: {str(e)}")
+    
+    print("\n=== Enhanced Financial Modeling Parser Ready ===")
+    print("Capabilities:")
+    print("- VaR and risk modeling detection")
+    print("- Option pricing model identification (Black-Scholes, Binomial)")
+    print("- Portfolio optimization analysis (MPT)")
+    print("- Monte Carlo simulation recognition")
+    print("- Fixed income analytics")
+    print("- Time series analysis")
+    print("- Regulatory framework mapping")

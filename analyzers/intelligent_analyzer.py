@@ -193,7 +193,11 @@ class FreeIntelligentAnalyzer:
                 self.logger.warning(f"Enhanced summary generation failed: {e}")
                 enhanced_summary = None
         
-        return IntelligentAnalysis(
+        # Additional financial model sophistication analysis
+        financial_sophistication = self._detect_financial_model_sophistication(excel_analysis, formula_analysis)
+        
+        # Create enhanced intelligent analysis with financial modeling insights
+        analysis = IntelligentAnalysis(
             document_type='excel',
             summary=summary,
             key_insights=insights,
@@ -208,6 +212,11 @@ class FreeIntelligentAnalyzer:
             confidence_score=final_confidence,
             enhanced_summary=enhanced_summary
         )
+        
+        # Add financial sophistication as additional attribute
+        analysis.financial_sophistication = financial_sophistication
+        
+        return analysis
     
     def analyze_word_content(self, word_analysis) -> IntelligentAnalysis:
         """Analyze Word document using free intelligence"""
@@ -392,6 +401,52 @@ class FreeIntelligentAnalyzer:
                 return category
         
         return 'general'
+    
+    def _detect_financial_model_sophistication(self, excel_analysis, formula_analysis) -> Dict[str, Any]:
+        """Detect the sophistication level of financial models"""
+        sophistication = {
+            'level': 'basic',
+            'score': 0,
+            'advanced_techniques': [],
+            'regulatory_compliance': [],
+            'model_validation_features': []
+        }
+        
+        business_categories = formula_analysis.get('business_categories', {})
+        function_usage = formula_analysis.get('function_usage', {})
+        
+        # Score advanced financial techniques
+        if 'risk_modeling' in business_categories:
+            sophistication['score'] += 25
+            sophistication['advanced_techniques'].append('Value at Risk (VaR) modeling')
+        
+        if 'derivatives_pricing' in business_categories:
+            sophistication['score'] += 30
+            sophistication['advanced_techniques'].append('Derivatives pricing models')
+        
+        if 'monte_carlo' in business_categories:
+            sophistication['score'] += 25
+            sophistication['advanced_techniques'].append('Monte Carlo simulation')
+        
+        if 'portfolio_management' in business_categories:
+            sophistication['score'] += 20
+            sophistication['advanced_techniques'].append('Portfolio optimization (MPT)')
+        
+        # Check for advanced mathematical functions
+        advanced_functions = ['MMULT', 'TRANSPOSE', 'MINVERSE', 'NORM.DIST', 'NORM.INV']
+        for func in advanced_functions:
+            if func in function_usage:
+                sophistication['score'] += 5
+        
+        # Determine sophistication level
+        if sophistication['score'] > 60:
+            sophistication['level'] = 'highly_advanced'
+        elif sophistication['score'] > 30:
+            sophistication['level'] = 'advanced'
+        elif sophistication['score'] > 10:
+            sophistication['level'] = 'intermediate'
+        
+        return sophistication
     
     def _describe_formula(self, formula: str, functions: List[str], category: str) -> str:
         """Generate human-readable formula description"""
