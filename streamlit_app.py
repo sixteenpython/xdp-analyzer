@@ -661,31 +661,32 @@ class StreamlitXDPAnalyzer:
         
         # Input for next response (if conversation not completed)
         if agent_state != "completed":
-            user_response = st.text_input(
-                "Your response:",
-                placeholder="Type your answer here...",
-                key="user_response_input"
-            )
-            
-            col1, col2 = st.columns([1, 4])
-            with col1:
-                if st.button("📤 Send", disabled=not user_response.strip()):
-                    if user_response.strip():
-                        # Process user response
-                        agent_response = st.session_state.requirements_agent.process_user_response(user_response)
-                        
-                        # Add messages to conversation
-                        st.session_state.conversation_messages.extend([
-                            {"sender": "user", "message": user_response, "type": "response"},
-                            {"sender": "agent", "message": agent_response, "type": "response"}
-                        ])
-                        
-                        # Clear input
-                        st.session_state.user_response_input = ""
-                        st.rerun()
-            
-            with col2:
-                if st.button("⏭️ Skip Question"):
+            with st.form("user_response_form", clear_on_submit=True):
+                user_response = st.text_input(
+                    "Your response:",
+                    placeholder="Type your answer here...",
+                    key="user_input_field"
+                )
+                
+                col1, col2 = st.columns([1, 4])
+                with col1:
+                    send_button = st.form_submit_button("📤 Send")
+                
+                with col2:
+                    skip_button = st.form_submit_button("⏭️ Skip Question")
+                
+                if send_button and user_response.strip():
+                    # Process user response
+                    agent_response = st.session_state.requirements_agent.process_user_response(user_response)
+                    
+                    # Add messages to conversation
+                    st.session_state.conversation_messages.extend([
+                        {"sender": "user", "message": user_response, "type": "response"},
+                        {"sender": "agent", "message": agent_response, "type": "response"}
+                    ])
+                    st.rerun()
+                
+                elif skip_button:
                     # Skip current question
                     agent_response = st.session_state.requirements_agent.process_user_response("I'd prefer to skip this question")
                     
